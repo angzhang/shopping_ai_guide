@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping AI Guide</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <header class="popup-header">
+            <h1>🛍️ Shopping AI Guide</h1>
+            <p>Select product images and send to AI for comparison</p>
+        </header>
+        
+        <main class="popup-main">
+            <div class="action-section">
+                <button id="start-selection" class="primary-button">
+                    📸 Start Image Selection
+                </button>
+                <p class="help-text">Click to start selecting product images on the current page</p>
+            </div>
+            
+            <div class="status-section" id="status-section" style="display: none;">
+                <div class="status-item">
+                    <span class="status-label">Selected Images:</span>
+                    <span class="status-value" id="selected-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Last Analysis:</span>
+                    <span class="status-value" id="last-analysis">Never</span>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Default LLM Provider</h3>
+                <select id="default-llm" class="llm-select">
+                    <option value="chatgpt">ChatGPT</option>
+                    <option value="claude">Claude</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="copilot">Microsoft Copilot</option>
+                    <option value="perplexity">Perplexity</option>
+                </select>
+                <p class="help-text">This LLM will be used when you click "Send to Default LLM"</p>
+            </div>
+            
+            <div class="recent-section" id="recent-section" style="display: none;">
+                <h3>Recent Selection</h3>
+                <div class="recent-item">
+                    <div class="recent-info">
+                        <span class="recent-provider" id="recent-provider">-</span>
+                        <span class="recent-time" id="recent-time">-</span>
+                    </div>
+                    <button id="resend-recent" class="secondary-button">Send Again</button>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="popup-footer">
+            <div class="instructions">
+                <h4>How to use:</h4>
+                <ol>
+                    <li>Click "Start Image Selection"</li>
+                    <li>Select product images on the page</li>
+                    <li>Choose your preferred LLM tool</li>
+                    <li>Paste the copied prompt in the LLM chat</li>
+                </ol>
+            </div>
+        </footer>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

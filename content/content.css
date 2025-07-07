@@ -1,0 +1,217 @@
+#shopping-ai-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 15px 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+.selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.selection-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.selection-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.selected-count {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.selection-controls button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+#clear-selection {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+#clear-selection:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#analyze-products {
+  background: #28a745;
+  color: white;
+}
+
+#analyze-products:hover:not(:disabled) {
+  background: #218838;
+}
+
+#analyze-products:disabled {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
+#close-selection {
+  background: #dc3545;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+#close-selection:hover {
+  background: #c82333;
+}
+
+/* Shopping AI Extension - Selectable image styles */
+img.selectable-image {
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  border: 3px solid #667eea !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3) !important;
+  outline: 2px solid rgba(102, 126, 234, 0.5) !important;
+  outline-offset: 2px !importan;
+  position: relative !important;
+}
+
+img.selectable-image:hover {
+  border-color: #4f46e5 !important;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5) !important;
+  outline-color: rgba(79, 70, 229, 0.7) !important;
+}
+
+img.selected-image {
+  border: 4px solid #28a745 !important;
+  outline: 3px solid rgba(40, 167, 69, 0.6) !important;
+  outline-offset: 2px !important;
+  transform: scale(1.05) !important;
+  box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6) !important;
+  position: relative !important;
+  z-index: 999 !important;
+}
+
+img.selected-image::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  background: linear-gradient(45deg, rgba(40, 167, 69, 0.2), rgba(40, 167, 69, 0.1));
+  border-radius: 12px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+img.selected-image::after {
+  content: '✓';
+  position: absolute !important;
+  top: -5px !important;
+  right: -5px !important;
+  background: #28a745 !important;
+  color: white !important;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  z-index: 1001 !important;
+  border: 3px solid white !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  pointer-events: none !important;
+}
+
+/* Pulse animation for newly selected images */
+@keyframes shopping-ai-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.8; }
+  100% { opacity: 1; }
+}
+
+@keyframes shopping-ai-highlight {
+  0% { box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); }
+  50% { box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6); }
+  100% { box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); }
+}
+
+img.selected-image.shopping-ai-just-selected {
+  animation: shopping-ai-pulse 0.6s ease-in-out;
+}
+
+/* Override any website styles that might interfere */
+img[data-shopping-ai-selectable="true"] {
+  box-sizing: content-box !important;
+}
+
+img[data-shopping-ai-selected="true"] {
+  box-sizing: content-box !important;
+}
+
+/* LLM selection modal styles removed - using popup selection instead */
+
+#success-message,
+#error-message {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 10002;
+  max-width: 350px;
+  border-radius: 8px;
+  padding: 15px 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+#success-message {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+#error-message {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.message-content p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.message-content p:last-child {
+  margin-bottom: 0;
+}
