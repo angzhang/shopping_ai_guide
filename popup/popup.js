@@ -5,12 +5,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadStoredData() {
   try {
-    const data = await chrome.storage.local.get(['defaultLLM', 'lastSelection']);
-    
-    if (data.defaultLLM) {
-      document.getElementById('default-llm').value = data.defaultLLM;
+    const data = await chrome.storage.local.get(['geminiModel', 'lastSelection', 'geminiApiKey']);
+
+    if (data.geminiModel) {
+      document.getElementById('gemini-model').value = data.geminiModel;
+    } else {
+      // Set default model
+      document.getElementById('gemini-model').value = 'gemini-2.5-flash';
+      await chrome.storage.local.set({ geminiModel: 'gemini-2.5-flash' });
     }
-    
+
+    if (data.geminiApiKey) {
+      document.getElementById('gemini-api-key').value = data.geminiApiKey;
+      showApiKeyStatus('API key loaded', 'success');
+    }
+
     if (data.lastSelection) {
       showRecentSection(data.lastSelection);
     }
@@ -21,8 +30,80 @@ async function loadStoredData() {
 
 function setupEventListeners() {
   document.getElementById('start-selection').addEventListener('click', startSelection);
-  document.getElementById('default-llm').addEventListener('change', saveDefaultLLM);
+  document.getElementById('gemini-model').addEventListener('change', saveGeminiModel);
   document.getElementById('resend-recent').addEventListener('click', resendRecent);
+
+  // Gemini API key handlers
+  const apiKeyInput = document.getElementById('gemini-api-key');
+  apiKeyInput.addEventListener('input', saveGeminiApiKey);
+  apiKeyInput.addEventListener('blur', validateApiKey);
+
+  document.getElementById('toggle-api-key').addEventListener('click', toggleApiKeyVisibility);
+}
+
+async function saveGeminiApiKey() {
+  const apiKey = document.getElementById('gemini-api-key').value.trim();
+
+  try {
+    await chrome.storage.local.set({ geminiApiKey: apiKey });
+
+    if (apiKey) {
+      showApiKeyStatus('API key saved', 'success');
+    } else {
+      hideApiKeyStatus();
+    }
+  } catch (error) {
+    console.error('Error saving Gemini API key:', error);
+    showApiKeyStatus('Failed to save API key', 'error');
+  }
+}
+
+async function validateApiKey() {
+  const apiKey = document.getElementById('gemini-api-key').value.trim();
+
+  if (!apiKey) {
+    hideApiKeyStatus();
+    return;
+  }
+
+  // Basic validation: Gemini API keys typically start with "AIza"
+  if (!apiKey.startsWith('AIza')) {
+    showApiKeyStatus('Warning: API key format looks incorrect', 'error');
+  } else {
+    showApiKeyStatus('API key format looks valid', 'success');
+  }
+}
+
+function toggleApiKeyVisibility() {
+  const apiKeyInput = document.getElementById('gemini-api-key');
+  const button = document.getElementById('toggle-api-key');
+
+  if (apiKeyInput.type === 'password') {
+    apiKeyInput.type = 'text';
+    button.textContent = '🙈';
+  } else {
+    apiKeyInput.type = 'password';
+    button.textContent = '👁️';
+  }
+}
+
+function showApiKeyStatus(message, type) {
+  const statusDiv = document.getElementById('api-key-status');
+  statusDiv.textContent = message;
+  statusDiv.className = `api-key-status ${type}`;
+  statusDiv.style.display = 'block';
+
+  // Auto-hide after 3 seconds for non-error messages
+  if (type === 'success') {
+    setTimeout(() => {
+      hideApiKeyStatus();
+    }, 3000);
+  }
+}
+
+function hideApiKeyStatus() {
+  const statusDiv = document.getElementById('api-key-status');
+  statusDiv.style.display = 'none';
 }
 
 async function startSelection() {
@@ -45,42 +126,42 @@ function toggleImageSelection() {
   window.postMessage({ type: 'TOGGLE_IMAGE_SELECTION' }, '*');
 }
 
-async function saveDefaultLLM() {
-  const selectedLLM = document.getElementById('default-llm').value;
-  
+async function saveGeminiModel() {
+  const selectedModel = document.getElementById('gemini-model').value;
+
   try {
-    await chrome.storage.local.set({ defaultLLM: selectedLLM });
+    await chrome.storage.local.set({ geminiModel: selectedModel });
+    console.log('Saved Gemini model:', selectedModel);
   } catch (error) {
-    console.error('Error saving default LLM:', error);
+    console.error('Error saving Gemini model:', error);
   }
 }
 
 async function resendRecent() {
   try {
     const data = await chrome.storage.local.get(['lastSelection']);
-    
+
     if (!data.lastSelection) {
       showError('No recent selection found.');
       return;
     }
-    
-    const { provider, data: selectionData } = data.lastSelection;
-    
+
+    const { data: selectionData } = data.lastSelection;
+
     chrome.runtime.sendMessage({
-      action: 'sendToLLM',
+      action: 'sendToGemini',
       data: {
         selectedImages: selectionData.selectedImages,
-        llmProvider: provider,
         pageContext: selectionData.pageContext
       }
     }, (response) => {
       if (response.success) {
-        showSuccess(`Reopened ${provider} with your previous selection!`);
+        showSuccess('Resent to Gemini AI!');
       } else {
         showError(response.error || 'Failed to resend selection.');
       }
     });
-    
+
   } catch (error) {
     console.error('Error resending recent selection:', error);
     showError('Failed to resend recent selection.');
@@ -91,10 +172,10 @@ function showRecentSection(lastSelection) {
   const recentSection = document.getElementById('recent-section');
   const recentProvider = document.getElementById('recent-provider');
   const recentTime = document.getElementById('recent-time');
-  
-  recentProvider.textContent = lastSelection.provider.charAt(0).toUpperCase() + lastSelection.provider.slice(1);
+
+  recentProvider.textContent = 'Gemini AI';
   recentTime.textContent = formatTime(lastSelection.timestamp);
-  
+
   recentSection.style.display = 'block';
   recentSection.classList.add('fade-in');
 }

@@ -3,90 +3,113 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.action.onClicked.addListener((tab) => {
+  console.log('Shopping AI Guide: Extension icon clicked');
+  console.log('Shopping AI Guide: Tab ID:', tab.id);
+  console.log('Shopping AI Guide: Tab URL:', tab.url);
+  console.log('Shopping AI Guide: Executing script to toggle image selection...');
+
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
     function: toggleImageSelection
+  }).then(() => {
+    console.log('Shopping AI Guide: Script executed successfully');
+  }).catch((error) => {
+    console.error('Shopping AI Guide: Script execution failed:', error);
   });
 });
 
 function toggleImageSelection() {
+  console.log('Shopping AI Guide: toggleImageSelection() function called in page context');
+  console.log('Shopping AI Guide: Posting TOGGLE_IMAGE_SELECTION message...');
   window.postMessage({ type: 'TOGGLE_IMAGE_SELECTION' }, '*');
+  console.log('Shopping AI Guide: Message posted');
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'sendToLLM') {
-    handleSendToLLM(request.data)
+  if (request.action === 'sendToGemini' || request.action === 'sendToLLM') {
+    handleSendToGemini(request.data)
       .then(result => sendResponse({ success: true, data: result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
 });
 
-async function handleSendToLLM(data) {
-  const { selectedImages, llmProvider, pageContext } = data;
-  
+async function handleSendToGemini(data) {
+  const { selectedImages, pageContext } = data;
+
   const formattedData = formatDataForLLM(selectedImages, pageContext);
-  
+
   chrome.storage.local.set({
     lastSelection: {
       timestamp: Date.now(),
-      data: formattedData,
-      provider: llmProvider
+      data: formattedData
     }
   });
-  
-  return await openLLMChatTool(llmProvider, formattedData);
+
+  return await handleGeminiAPI(formattedData);
 }
 
 function formatDataForLLM(selectedImages, pageContext) {
-  const prompt = `I'm shopping and need help comparing these products. Please analyze and compare them, and IMPORTANT: please display each product image in your response for visual reference.
+  const prompt = `Analyze these ${selectedImages.length} products and help me decide which to buy.
 
-**INSTRUCTIONS FOR RESPONSE:**
-1. For each product, start by showing the product image using the provided image URL (load and display the actual image)
-2. Then provide detailed analysis including:
-   - Product name and description
-   - Key features and specifications
-   - Price analysis and value assessment
-   - Customer reviews and ratings (if available)
-   - Pros and cons
-3. End with an overall comparison and recommendation
+Context: ${pageContext.title}
 
-**Page Context:**
-- Website: ${pageContext.url}
-- Page Title: ${pageContext.title}
-- Shopping Intent: Product comparison and purchase decision
-
-**Selected Products for Comparison:**
+Products:
 ${selectedImages.map((img, index) => `
-## Product ${index + 1}
-**Image URL:** ${img.imageUrl}
-**Product Link:** ${img.productLink}
-**Price:** ${img.price || 'Not specified'}
-**Rating:** ${img.rating || 'Not available'}
-**Description/Context:** ${img.context}
+Product ${index + 1}: ${img.price || 'Price not shown'} | ${img.rating || 'No rating'}
+Details: ${img.context.substring(0, 200)}
+`).join('\n')}
 
-Please load and display this image: ${img.imageUrl}
+IMPORTANT: Format your response for a NARROW panel (420px wide). Use:
+- Short paragraphs (2-3 lines max)
+- Bullet points, not long prose
+- Vertical lists instead of wide tables
+- Concise language
 
-`).join('')}
+Required Format:
 
-**Additional Page Context:**
-${pageContext.description}
+## 🏆 Recommendation
 
-**RESPONSE FORMAT REQUESTED:**
-For each product above, please:
-1. **Load and display the product image** from the provided URL
-2. **Analyze the product** based on the image and provided information
-3. **Provide structured comparison** with:
-   - Product name and key details
-   - Visual assessment from the image
-   - Features and specifications
-   - Pricing analysis
-   - Pros and cons
-   - Your assessment
+[1-2 sentences: Which product wins and why?]
 
-Finally, provide a **comparison table** and **final recommendation** at the end.
+**Best Choice:** Product [X]
+**Why:** [One key reason]
+**Price/Value:** [Quick assessment]
 
-**Note:** The image URLs are provided above - please fetch and display each image in your response so I can visually see each product while reading your analysis. This is crucial for making an informed purchase decision.`;
+---
+
+## 📊 Quick Comparison
+
+**Product 1:** [Name]
+• Price: [price]
+• Pros: [2-3 key pros]
+• Cons: [1-2 key cons]
+• Best for: [who/what]
+
+**Product 2:** [Name]
+• Price: [price]
+• Pros: [2-3 key pros]
+• Cons: [1-2 key cons]
+• Best for: [who/what]
+
+[Repeat for each product]
+
+---
+
+## 🔍 Key Differences
+
+• **[Feature 1]:** Product X wins because...
+• **[Feature 2]:** Product Y offers...
+• **[Feature 3]:** Consider...
+
+---
+
+## 💡 Final Tips
+
+• [One important consideration]
+• [One thing to watch out for]
+
+Keep each section CONCISE. Use short bullets. Avoid wide tables or long paragraphs.`;
 
   return {
     prompt,
@@ -95,176 +118,157 @@ Finally, provide a **comparison table** and **final recommendation** at the end.
   };
 }
 
-async function openLLMChatTool(provider, formattedData) {
-  const urls = {
-    chatgpt: 'https://chat.openai.com/',
-    claude: 'https://claude.ai/',
-    gemini: 'https://gemini.google.com/',
-    copilot: 'https://copilot.microsoft.com/',
-    perplexity: 'https://www.perplexity.ai/'
-  };
-
-  const url = urls[provider];
-  if (!url) {
-    throw new Error('Unsupported LLM provider');
-  }
-
+async function handleGeminiAPI(formattedData) {
   try {
-    // Get the original tab first (before creating new tab)
-    const [originalTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    // Copy to clipboard in the original tab BEFORE opening new tab
-    if (originalTab) {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: originalTab.id },
-          func: copyToClipboard,
-          args: [formattedData.prompt]
-        });
-        console.log('Prompt copied to clipboard before opening LLM tool');
-      } catch (clipboardError) {
-        console.error('Clipboard copy failed:', clipboardError);
-        // Store the prompt for later retrieval
-        await chrome.storage.local.set({ 
-          pendingPrompt: formattedData.prompt,
-          promptTimestamp: Date.now()
-        });
-      }
+    // Get the API key and selected model from storage
+    const data = await chrome.storage.local.get(['geminiApiKey', 'geminiModel']);
+    const apiKey = data.geminiApiKey;
+    const selectedModel = data.geminiModel || 'gemini-2.5-flash';
+
+    if (!apiKey) {
+      throw new Error('Gemini API key not configured. Please add your API key in the extension settings.');
     }
-    
-    // Small delay to ensure clipboard operation completes
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Create new tab with the LLM provider
-    const newTab = await chrome.tabs.create({ url });
-    
-    // Try to inject a notification script into the new tab after it loads
-    setTimeout(async () => {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: newTab.id },
-          func: showPromptNotification,
-          args: [provider]
-        });
-      } catch (error) {
-        console.log('Could not inject notification script:', error);
+
+    console.log('Using Gemini model:', selectedModel);
+
+    // Download images as base64
+    const imagesData = await Promise.all(
+      formattedData.selectedImages.map(async (img) => {
+        try {
+          const base64 = await fetchImageAsBase64(img.imageUrl);
+          return {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: base64
+            }
+          };
+        } catch (error) {
+          console.error('Failed to fetch image:', img.imageUrl, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter out failed images
+    const validImages = imagesData.filter(img => img !== null);
+
+    if (validImages.length === 0) {
+      throw new Error('Failed to load any product images. Please try again.');
+    }
+
+    // Create the parts array with text prompt and images
+    const parts = [
+      { text: formattedData.prompt },
+      ...validImages
+    ];
+
+    // Call Gemini API with the selected model
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: parts
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 65536,
+          },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          ]
+        })
       }
-    }, 3000);
-    
-    return { success: true, message: 'Opening LLM chat tool and copying prompt to clipboard' };
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    console.log('Gemini API response:', result);
+
+    // Check if response was blocked or incomplete
+    const candidate = result.candidates?.[0];
+    if (!candidate) {
+      throw new Error('No response candidate from Gemini API');
+    }
+
+    // Check finish reason
+    const finishReason = candidate.finishReason;
+    console.log('Finish reason:', finishReason);
+
+    if (finishReason === 'SAFETY') {
+      throw new Error('Response blocked by safety filters. Try different images or adjust safety settings.');
+    } else if (finishReason === 'MAX_TOKENS') {
+      console.warn('Response truncated due to max tokens limit');
+    } else if (finishReason === 'RECITATION') {
+      throw new Error('Response blocked due to recitation concerns');
+    }
+
+    // Extract all text parts (sometimes response is split into multiple parts)
+    const responseParts = candidate.content?.parts;
+    if (!responseParts || responseParts.length === 0) {
+      console.error('Full API response:', JSON.stringify(result, null, 2));
+      throw new Error('No response parts received from Gemini API');
+    }
+
+    // Combine all text parts
+    const responseText = responseParts.map(part => part.text || '').join('');
+
+    if (!responseText) {
+      console.error('Full API response:', JSON.stringify(result, null, 2));
+      throw new Error('No response text received from Gemini API');
+    }
+
+    console.log('Response text length:', responseText.length, 'characters');
+    console.log('Number of parts:', responseParts.length);
+
+    // Return the analysis result to be displayed in the panel
+    return {
+      success: true,
+      message: 'Gemini API analysis complete',
+      analysis: responseText,
+      images: formattedData.selectedImages,
+      finishReason: finishReason
+    };
   } catch (error) {
-    console.error('Error opening LLM tool:', error);
-    throw new Error('Failed to open LLM chat tool: ' + error.message);
+    console.error('Error calling Gemini API:', error);
+    throw error;
   }
 }
 
-// Function to be injected into the page to copy text to clipboard
-function copyToClipboard(text) {
-  return new Promise((resolve, reject) => {
-    // First try the modern clipboard API
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        console.log('Prompt copied to clipboard successfully');
-        // Show a visual confirmation
-        showCopyConfirmation();
-        resolve();
-      }).catch(err => {
-        console.warn('Modern clipboard API failed, trying fallback:', err);
-        fallbackCopy(text, resolve, reject);
-      });
-    } else {
-      // Use fallback method
-      fallbackCopy(text, resolve, reject);
+async function fetchImageAsBase64(imageUrl) {
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
-  });
-  
-  function fallbackCopy(text, resolve, reject) {
-    try {
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      textArea.style.position = 'fixed';
-      textArea.style.top = '0';
-      textArea.style.left = '0';
-      textArea.style.opacity = '0';
-      textArea.style.pointerEvents = 'none';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      
-      const successful = document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      if (successful) {
-        console.log('Prompt copied using fallback method');
-        showCopyConfirmation();
-        resolve();
-      } else {
-        console.error('Fallback copy failed');
-        reject(new Error('Copy failed'));
-      }
-    } catch (err) {
-      console.error('Fallback copy error:', err);
-      reject(err);
-    }
-  }
-  
-  function showCopyConfirmation() {
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #28a745;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 6px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    `;
-    notification.textContent = '✓ Shopping prompt copied to clipboard!';
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-      notification.remove();
-    }, 3000);
-  }
-}
 
-// Function to show prompt notification in the LLM chat tool
-function showPromptNotification(provider) {
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #667eea;
-    color: white;
-    padding: 15px 20px;
-    border-radius: 8px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    z-index: 10000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    max-width: 300px;
-    line-height: 1.4;
-  `;
-  notification.innerHTML = `
-    <div style="margin-bottom: 8px; font-weight: 600;">🛍️ Shopping AI Guide</div>
-    <div>Your product comparison prompt has been copied to clipboard. Paste it here (Ctrl+V / Cmd+V) to get started!</div>
-  `;
-  document.body.appendChild(notification);
-  
-  // Auto-dismiss after 8 seconds
-  setTimeout(() => {
-    notification.remove();
-  }, 8000);
-  
-  // Allow manual dismiss by clicking
-  notification.addEventListener('click', () => {
-    notification.remove();
-  });
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Remove the data:image/xxx;base64, prefix
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error converting image to base64:', error);
+    throw error;
+  }
 }

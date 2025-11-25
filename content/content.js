@@ -17,8 +17,10 @@ function initialize() {
     console.error('Shopping AI Guide: Failed to initialize - extension context unavailable');
     return;
   }
-  
-  console.log('Shopping AI Guide: Content script initialized');
+
+  console.log('Shopping AI Guide: Content script initialized successfully');
+  console.log('Shopping AI Guide: Ready to receive messages');
+  console.log('Shopping AI Guide: isSelectionMode =', isSelectionMode);
 }
 
 // Initialize when DOM is ready
@@ -29,26 +31,64 @@ if (document.readyState === 'loading') {
 }
 
 window.addEventListener('message', (event) => {
-  if (event.data.type === 'TOGGLE_IMAGE_SELECTION') {
+  // Log all messages to help debug
+  console.log('Shopping AI Guide: Message received:', event.data);
+
+  if (event.data && event.data.type === 'TOGGLE_IMAGE_SELECTION') {
+    console.log('Shopping AI Guide: TOGGLE_IMAGE_SELECTION message detected');
+    console.log('Shopping AI Guide: Extension context available:', checkExtensionContext());
+    console.log('Shopping AI Guide: Current selection mode:', isSelectionMode);
+
     if (checkExtensionContext()) {
       toggleSelectionMode();
+    } else {
+      console.error('Shopping AI Guide: Cannot toggle - extension context unavailable');
     }
   }
 });
 
 function toggleSelectionMode() {
   isSelectionMode = !isSelectionMode;
-  
+  console.log('Shopping AI Guide: Selection mode toggled to:', isSelectionMode);
+
   if (isSelectionMode) {
+    console.log('Shopping AI Guide: Enabling selection mode...');
     enableSelectionMode();
+    console.log('Shopping AI Guide: Selection mode enabled');
   } else {
+    console.log('Shopping AI Guide: Disabling selection mode...');
     disableSelectionMode();
+    console.log('Shopping AI Guide: Selection mode disabled');
   }
 }
 
 function enableSelectionMode() {
+  console.log('Shopping AI Guide: enableSelectionMode() called');
+
+  // Check if panel already exists
+  if (selectionOverlay) {
+    console.log('Shopping AI Guide: Panel already exists, showing it');
+    selectionOverlay.style.display = 'flex';
+    showSettingsView();
+    return;
+  }
+
+  console.log('Shopping AI Guide: Creating new panel...');
   createSelectionOverlay();
-  addImageHighlights();
+  console.log('Shopping AI Guide: Panel created, checking visibility...');
+
+  // Verify panel is in DOM
+  const panel = document.getElementById('shopping-ai-panel');
+  if (panel) {
+    console.log('Shopping AI Guide: Panel found in DOM');
+    console.log('Shopping AI Guide: Panel display:', window.getComputedStyle(panel).display);
+    console.log('Shopping AI Guide: Panel visibility:', window.getComputedStyle(panel).visibility);
+    console.log('Shopping AI Guide: Panel z-index:', window.getComputedStyle(panel).zIndex);
+  } else {
+    console.error('Shopping AI Guide: Panel NOT found in DOM after creation!');
+  }
+
+  // Don't add highlights yet - wait for user to click "Start Selecting Products"
   showSelectionUI();
 }
 
@@ -59,25 +99,111 @@ function disableSelectionMode() {
 }
 
 function createSelectionOverlay() {
+  console.log('Shopping AI Guide: createSelectionOverlay() called');
+
+  // Check if document.body exists
+  if (!document.body) {
+    console.error('Shopping AI Guide: document.body is null! Cannot create panel.');
+    return;
+  }
+
+  console.log('Shopping AI Guide: Creating panel element...');
   selectionOverlay = document.createElement('div');
-  selectionOverlay.id = 'shopping-ai-overlay';
+  selectionOverlay.id = 'shopping-ai-panel';
   selectionOverlay.innerHTML = `
-    <div class="selection-header">
-      <h3>Shopping AI Guide - Select Product Images</h3>
-      <div class="selection-controls">
-        <span class="selected-count">Selected: ${selectedImages.length}</span>
-        <button id="clear-selection">Clear All</button>
-        <button id="analyze-products" ${selectedImages.length === 0 ? 'disabled' : ''}>Send to Default LLM</button>
-        <button id="close-selection">×</button>
+    <div class="panel-header">
+      <h3>🛍️ Shopping AI Guide</h3>
+      <button id="close-panel" class="close-btn">×</button>
+    </div>
+    <div class="panel-content">
+      <!-- Settings Section -->
+      <div class="settings-section" id="settings-section">
+        <div class="section-title">Settings</div>
+
+        <div class="settings-group">
+          <label class="settings-label">Gemini API Key</label>
+          <div class="api-key-input-wrapper">
+            <input type="password" id="panel-api-key" class="settings-input" placeholder="Enter your API key">
+            <button id="toggle-panel-api-key" class="toggle-visibility-btn">👁️</button>
+          </div>
+          <p class="settings-help">Get your free key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></p>
+          <div id="panel-api-status" class="api-status"></div>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-label">Gemini Model</label>
+          <select id="panel-model-select" class="settings-select">
+            <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Recommended)</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (Most Capable)</option>
+            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview (Latest)</option>
+            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Fastest)</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Stable)</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Stable)</option>
+          </select>
+        </div>
+
+        <button id="start-selection-btn" class="primary-btn">Start Selecting Products</button>
+      </div>
+
+      <!-- Selection Section -->
+      <div class="selection-section" id="selection-section" style="display: none;">
+        <button id="back-to-settings" class="back-btn">← Settings</button>
+        <div class="section-title">Selected Products</div>
+        <div class="selected-info">
+          <span class="selected-count">0 images selected</span>
+          <button id="clear-selection" class="secondary-btn">Clear All</button>
+        </div>
+        <div id="selected-thumbnails" class="thumbnails-grid"></div>
+        <button id="analyze-products" class="primary-btn" disabled>Analyze with Gemini AI</button>
+      </div>
+
+      <!-- Results Section -->
+      <div class="results-section" id="results-section" style="display: none;">
+        <button id="back-to-selection" class="back-btn">← New Analysis</button>
+        <div class="section-title">Analysis Results</div>
+        <div id="product-images-preview" class="product-images-preview"></div>
+        <div id="analysis-content" class="analysis-content"></div>
+      </div>
+
+      <!-- Loading Section -->
+      <div id="loading-section" class="loading-section" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>Analyzing products with Gemini AI...</p>
       </div>
     </div>
   `;
-  
+
+  console.log('Shopping AI Guide: Appending panel to document.body...');
   document.body.appendChild(selectionOverlay);
-  
+  console.log('Shopping AI Guide: Panel appended to document.body');
+  console.log('Shopping AI Guide: Panel element:', selectionOverlay);
+  console.log('Shopping AI Guide: Panel ID:', selectionOverlay.id);
+  console.log('Shopping AI Guide: Panel parent:', selectionOverlay.parentElement);
+
+  // Load saved settings
+  console.log('Shopping AI Guide: Loading panel settings...');
+  loadPanelSettings();
+
+  // Event listeners
+  console.log('Shopping AI Guide: Setting up event listeners...');
+  document.getElementById('start-selection-btn').addEventListener('click', showSelectionView);
+  document.getElementById('back-to-settings').addEventListener('click', showSettingsView);
+  document.getElementById('back-to-selection').addEventListener('click', showSelectionView);
   document.getElementById('clear-selection').addEventListener('click', clearSelection);
-  document.getElementById('analyze-products').addEventListener('click', sendToDefaultLLM);
-  document.getElementById('close-selection').addEventListener('click', disableSelectionMode);
+  document.getElementById('analyze-products').addEventListener('click', sendToGemini);
+  document.getElementById('close-panel').addEventListener('click', disableSelectionMode);
+  document.getElementById('panel-api-key').addEventListener('input', savePanelApiKey);
+  document.getElementById('panel-api-key').addEventListener('blur', validatePanelApiKey);
+  document.getElementById('panel-model-select').addEventListener('change', savePanelModel);
+  document.getElementById('toggle-panel-api-key').addEventListener('click', togglePanelApiKeyVisibility);
+
+  console.log('Shopping AI Guide: Event listeners set up successfully');
+  console.log('Shopping AI Guide: Panel creation completed successfully');
+  console.log('Shopping AI Guide: Showing settings view...');
+
+  // Show settings view by default
+  showSettingsView();
 }
 
 function removeSelectionOverlay() {
@@ -165,15 +291,35 @@ function setupGlobalClickHandler() {
       return;
     }
     
-    // Check if we clicked on a link that contains a selectable image
+    // Check if we clicked on a wrapper div
+    if (target.classList.contains('shopping-ai-wrapper')) {
+      const img = target.querySelector('img');
+      if (img) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleImageSelection(img);
+        return;
+      }
+    }
+    
+    // Check if we clicked on a link that contains a selectable image or wrapper
     const link = target.closest('a');
     if (link) {
       const selectableImage = link.querySelector('img[data-shopping-ai-selectable]');
+      const wrapper = link.querySelector('.shopping-ai-wrapper');
       if (selectableImage) {
         event.preventDefault();
         event.stopPropagation();
         handleImageSelection(selectableImage);
         return;
+      } else if (wrapper) {
+        const img = wrapper.querySelector('img');
+        if (img) {
+          event.preventDefault();
+          event.stopPropagation();
+          handleImageSelection(img);
+          return;
+        }
       }
     }
   };
@@ -226,6 +372,9 @@ function setupImageSelection(img) {
   const wrapper = document.createElement('div');
   wrapper.className = 'shopping-ai-wrapper selectable-image';
   wrapper.setAttribute('data-shopping-ai-selectable', 'true');
+
+  // Also mark the image itself as selectable
+  img.setAttribute('data-shopping-ai-selectable', 'true');
 
   // Copy relevant styles from the image to the wrapper
   const computedStyle = window.getComputedStyle(img);
@@ -344,17 +493,26 @@ function handleImageSelection(img) {
   // Check if already selected
   const existingIndex = selectedImages.findIndex(item => item.imageUrl === img.src);
   
+  const wrapper = img.closest('.shopping-ai-wrapper');
+  
   if (existingIndex > -1) {
     // Remove selection
     selectedImages.splice(existingIndex, 1);
     img.classList.remove('selected-image', 'shopping-ai-just-selected');
     img.removeAttribute('data-shopping-ai-selected');
     
+    // Remove selection from wrapper if it exists
+    if (wrapper) {
+      wrapper.classList.remove('selected-image', 'shopping-ai-just-selected');
+      wrapper.removeAttribute('data-shopping-ai-selected');
+    }
+    
     // Add a visual feedback for deselection
-    img.style.transition = 'all 0.3s ease';
-    img.style.transform = 'scale(0.95)';
+    const targetElement = wrapper || img;
+    targetElement.style.transition = 'all 0.3s ease';
+    targetElement.style.transform = 'scale(0.95)';
     setTimeout(() => {
-      img.style.transform = '';
+      targetElement.style.transform = '';
     }, 200);
     
     console.log('Image deselected, remaining:', selectedImages.length);
@@ -365,10 +523,17 @@ function handleImageSelection(img) {
     img.classList.add('selected-image');
     img.setAttribute('data-shopping-ai-selected', 'true');
     
+    // Add selection to wrapper if it exists
+    if (wrapper) {
+      wrapper.classList.add('selected-image');
+      wrapper.setAttribute('data-shopping-ai-selected', 'true');
+    }
+    
     // Add pulse animation for new selection
-    img.classList.add('shopping-ai-just-selected');
+    const targetElement = wrapper || img;
+    targetElement.classList.add('shopping-ai-just-selected');
     setTimeout(() => {
-      img.classList.remove('shopping-ai-just-selected');
+      targetElement.classList.remove('shopping-ai-just-selected');
     }, 600);
     
     // Force a reflow to ensure styles are applied
@@ -554,25 +719,263 @@ function extractRating(img) {
 }
 
 function updateSelectionUI() {
-  console.log('Updating UI, selected images:', selectedImages.length); // Debug log
+  console.log('Updating UI, selected images:', selectedImages.length);
   if (selectionOverlay) {
     const countElement = selectionOverlay.querySelector('.selected-count');
     const analyzeButton = selectionOverlay.querySelector('#analyze-products');
-    
+    const thumbnailsGrid = selectionOverlay.querySelector('#selected-thumbnails');
+
     if (countElement) {
-      countElement.textContent = `Selected: ${selectedImages.length}`;
+      countElement.textContent = `${selectedImages.length} image${selectedImages.length !== 1 ? 's' : ''} selected`;
     }
+
     if (analyzeButton) {
       analyzeButton.disabled = selectedImages.length === 0;
-      if (selectedImages.length > 0) {
-        analyzeButton.style.opacity = '1';
-        analyzeButton.style.cursor = 'pointer';
-      } else {
-        analyzeButton.style.opacity = '0.6';
-        analyzeButton.style.cursor = 'not-allowed';
-      }
+    }
+
+    // Update thumbnails grid
+    if (thumbnailsGrid) {
+      thumbnailsGrid.innerHTML = '';
+      selectedImages.forEach(img => {
+        const thumbnailItem = document.createElement('div');
+        thumbnailItem.className = 'thumbnail-item';
+        thumbnailItem.innerHTML = `<img src="${img.imageUrl}" alt="Product">`;
+        thumbnailsGrid.appendChild(thumbnailItem);
+      });
     }
   }
+}
+
+// Panel view management
+function showSettingsView() {
+  console.log('Shopping AI Guide: showSettingsView() called');
+
+  const settingsSection = document.getElementById('settings-section');
+  const selectionSection = document.getElementById('selection-section');
+  const resultsSection = document.getElementById('results-section');
+  const loadingSection = document.getElementById('loading-section');
+
+  if (settingsSection) {
+    settingsSection.style.display = 'block';
+    console.log('Shopping AI Guide: Settings section shown');
+  } else {
+    console.error('Shopping AI Guide: settings-section not found!');
+  }
+
+  if (selectionSection) {
+    selectionSection.style.display = 'none';
+  }
+
+  if (resultsSection) {
+    resultsSection.style.display = 'none';
+  }
+
+  if (loadingSection) {
+    loadingSection.style.display = 'none';
+  }
+
+  console.log('Shopping AI Guide: Settings view displayed');
+}
+
+function showSelectionView() {
+  const apiKey = document.getElementById('panel-api-key').value.trim();
+
+  if (!apiKey) {
+    showApiStatus('Please enter your Gemini API key first', 'error');
+    return;
+  }
+
+  document.getElementById('settings-section').style.display = 'none';
+  document.getElementById('selection-section').style.display = 'block';
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('loading-section').style.display = 'none';
+
+  // Enable image highlights when showing selection view
+  addImageHighlights();
+}
+
+function showResultsView() {
+  document.getElementById('settings-section').style.display = 'none';
+  document.getElementById('selection-section').style.display = 'none';
+  document.getElementById('results-section').style.display = 'block';
+  document.getElementById('loading-section').style.display = 'none';
+}
+
+function showLoadingView() {
+  document.getElementById('settings-section').style.display = 'none';
+  document.getElementById('selection-section').style.display = 'none';
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('loading-section').style.display = 'block';
+}
+
+// Panel settings management
+async function loadPanelSettings() {
+  try {
+    const result = await chrome.storage.local.get(['geminiApiKey', 'geminiModel']);
+
+    if (result.geminiApiKey) {
+      document.getElementById('panel-api-key').value = result.geminiApiKey;
+      showApiStatus('API key loaded', 'success');
+    }
+
+    if (result.geminiModel) {
+      document.getElementById('panel-model-select').value = result.geminiModel;
+    }
+  } catch (error) {
+    console.error('Error loading panel settings:', error);
+  }
+}
+
+async function savePanelApiKey() {
+  const apiKey = document.getElementById('panel-api-key').value.trim();
+
+  try {
+    await chrome.storage.local.set({ geminiApiKey: apiKey });
+
+    if (apiKey) {
+      showApiStatus('API key saved', 'success');
+    } else {
+      hideApiStatus();
+    }
+  } catch (error) {
+    console.error('Error saving API key:', error);
+    showApiStatus('Failed to save API key', 'error');
+  }
+}
+
+async function validatePanelApiKey() {
+  const apiKey = document.getElementById('panel-api-key').value.trim();
+
+  if (!apiKey) {
+    hideApiStatus();
+    return;
+  }
+
+  if (!apiKey.startsWith('AIza')) {
+    showApiStatus('Warning: API key format looks incorrect', 'error');
+  } else {
+    showApiStatus('API key format looks valid ✓', 'success');
+  }
+}
+
+async function savePanelModel() {
+  const model = document.getElementById('panel-model-select').value;
+
+  try {
+    await chrome.storage.local.set({ geminiModel: model });
+    console.log('Model saved:', model);
+  } catch (error) {
+    console.error('Error saving model:', error);
+  }
+}
+
+function togglePanelApiKeyVisibility() {
+  const input = document.getElementById('panel-api-key');
+  const button = document.getElementById('toggle-panel-api-key');
+
+  if (input.type === 'password') {
+    input.type = 'text';
+    button.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    button.textContent = '👁️';
+  }
+}
+
+function showApiStatus(message, type) {
+  const status = document.getElementById('panel-api-status');
+  if (status) {
+    status.textContent = message;
+    status.className = `api-status ${type}`;
+    status.style.display = 'block';
+
+    if (type === 'success') {
+      setTimeout(() => hideApiStatus(), 3000);
+    }
+  }
+}
+
+function hideApiStatus() {
+  const status = document.getElementById('panel-api-status');
+  if (status) {
+    status.style.display = 'none';
+  }
+}
+
+function hideResults() {
+  const resultsSection = document.getElementById('results-section');
+  if (resultsSection) {
+    resultsSection.style.display = 'none';
+  }
+}
+
+function showResults(analysis, images = null) {
+  const analysisContent = document.getElementById('analysis-content');
+  const imagesPreview = document.getElementById('product-images-preview');
+
+  // Display product images if provided
+  if (imagesPreview && images && images.length > 0) {
+    imagesPreview.innerHTML = `
+      <div class="product-images-grid">
+        ${images.map((img, index) => `
+          <div class="product-image-card">
+            <div class="product-image-wrapper">
+              <img src="${img.imageUrl}" alt="Product ${index + 1}">
+            </div>
+            <div class="product-number">Product ${index + 1}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  if (analysisContent) {
+    analysisContent.innerHTML = formatMarkdownToHTML(analysis);
+    showResultsView();
+
+    // Scroll to top of results
+    const panelContent = document.querySelector('.panel-content');
+    if (panelContent) {
+      panelContent.scrollTop = 0;
+    }
+  }
+}
+
+function formatMarkdownToHTML(text) {
+  let html = text;
+
+  // Horizontal rules (---) - must be before headers
+  html = html.replace(/^---+$/gim, '<hr>');
+
+  // Headers (with emoji support)
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // Bold
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Italic
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Lists - handle both * and - bullets, and •
+  html = html.replace(/^[•\*\-] (.*$)/gim, '<li>$1</li>');
+
+  // Wrap consecutive <li> in <ul>
+  html = html.replace(/(<li>.*?<\/li>\s*)+/gs, '<ul>$&</ul>');
+
+  // Line breaks to paragraphs
+  html = html.split('\n\n').map(para => {
+    const trimmed = para.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') ||
+        trimmed.startsWith('<li') || trimmed.startsWith('<hr')) {
+      return trimmed;
+    }
+    return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+
+  return html;
 }
 
 function clearSelection() {
@@ -612,30 +1015,73 @@ function clearAllSelectionFeedback() {
   });
 }
 
-async function sendToDefaultLLM() {
+async function sendToGemini() {
   if (selectedImages.length === 0) {
     showErrorMessage('Please select at least one product image first.');
     return;
   }
-  
+
+  // Clear selection feedback before sending
+  clearAllSelectionFeedback();
+
+  // Show loading state
+  showLoadingView();
+
+  const pageContext = {
+    url: window.location.href,
+    title: document.title,
+    description: getPageDescription()
+  };
+
+  // Check if chrome.runtime is available
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+    console.error('Chrome extension runtime not available');
+    showErrorMessage('Extension not properly loaded. Please refresh the page and try again.');
+    showSelectionView();
+    return;
+  }
+
+  console.log('Sending to Gemini AI with', selectedImages.length, 'images');
+
   try {
-    // Get the default LLM from storage
-    const result = await chrome.storage.local.get(['defaultLLM']);
-    const defaultProvider = result.defaultLLM || 'chatgpt';
-    
-    console.log('Using default LLM provider:', defaultProvider);
-    
-    // Clear selection feedback before sending
-    clearAllSelectionFeedback();
-    
-    sendToLLM(defaultProvider);
+    chrome.runtime.sendMessage({
+      action: 'sendToGemini',
+      data: {
+        selectedImages: selectedImages,
+        pageContext: pageContext
+      }
+    }, (response) => {
+      // Check for chrome.runtime.lastError
+      if (chrome.runtime.lastError) {
+        console.error('Chrome runtime error:', chrome.runtime.lastError);
+        showErrorMessage('Extension communication error: ' + chrome.runtime.lastError.message);
+        showSelectionView();
+        return;
+      }
+
+      if (response && response.success) {
+        // Display results in the panel with images
+        if (response.data && response.data.analysis) {
+          showResults(response.data.analysis, selectedImages);
+
+          // Show warning if response was truncated
+          if (response.data.finishReason === 'MAX_TOKENS') {
+            showWarningMessage('Analysis may be incomplete due to length limits. Try selecting fewer products for complete analysis.');
+          }
+        }
+      } else {
+        showErrorMessage(response ? response.error : 'Unknown error occurred');
+        showSelectionView();
+      }
+    });
   } catch (error) {
-    console.error('Error getting default LLM:', error);
-    // Fallback to ChatGPT
-    sendToLLM('chatgpt');
+    console.error('Error sending message to background:', error);
+    showErrorMessage('Failed to communicate with extension background. Please try reloading the extension.');
+    showSelectionView();
   }
 }
 
+// Legacy function for backward compatibility
 function sendToLLM(provider) {
   const pageContext = {
     url: window.location.href,
@@ -695,148 +1141,58 @@ function getPageDescription() {
   return '';
 }
 
-function showSuccessMessage(provider) {
-  const message = document.createElement('div');
-  message.id = 'success-message';
-  message.innerHTML = `
+function showSuccessMessage(message = 'Success!') {
+  const messageDiv = document.createElement('div');
+  messageDiv.id = 'success-message';
+  messageDiv.innerHTML = `
     <div class="message-content">
-      <p>✅ Opening ${provider.charAt(0).toUpperCase() + provider.slice(1)} and copying prompt to clipboard!</p>
-      <p>Paste the prompt in the chat to get your product comparison.</p>
-      <button id="show-prompt-backup" style="margin-top: 8px; padding: 4px 8px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Show Prompt as Backup</button>
+      <p>✅ ${message}</p>
     </div>
   `;
-  
-  document.body.appendChild(message);
-  
-  // Add click handler for backup prompt display
-  message.querySelector('#show-prompt-backup').addEventListener('click', () => {
-    showPromptBackup();
-  });
-  
-  setTimeout(() => {
-    message.remove();
-  }, 8000);
-}
 
-function showPromptBackup() {
-  if (selectedImages.length === 0) return;
-  
-  const pageContext = {
-    url: window.location.href,
-    title: document.title,
-    description: getPageDescription()
-  };
-  
-  const formattedData = formatDataForLLM(selectedImages, pageContext);
-  
-  const modal = document.createElement('div');
-  modal.id = 'prompt-backup-modal';
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 10002;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  `;
-  
-  modal.innerHTML = `
-    <div style="background: white; border-radius: 12px; padding: 30px; max-width: 80%; max-height: 80%; overflow-y: auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
-      <h3 style="margin: 0 0 20px 0; font-size: 18px; color: #333;">Shopping Comparison Prompt</h3>
-      <textarea id="prompt-text" readonly style="width: 100%; height: 300px; padding: 15px; border: 2px solid #e9ecef; border-radius: 6px; font-family: monospace; font-size: 12px; line-height: 1.4; resize: vertical;">${formattedData}</textarea>
-      <div style="margin-top: 20px; text-align: center;">
-        <button id="copy-prompt-text" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: 10px;">Copy to Clipboard</button>
-        <button id="close-prompt-modal" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;">Close</button>
-      </div>
-    </div>
-  `;
-  
-  document.body.appendChild(modal);
-  
-  // Add event listeners
-  modal.querySelector('#copy-prompt-text').addEventListener('click', () => {
-    const textarea = modal.querySelector('#prompt-text');
-    textarea.select();
-    document.execCommand('copy');
-    
-    // Show copy confirmation
-    const button = modal.querySelector('#copy-prompt-text');
-    const originalText = button.textContent;
-    button.textContent = 'Copied!';
-    button.style.background = '#28a745';
-    
-    setTimeout(() => {
-      button.textContent = originalText;
-      button.style.background = '#667eea';
-    }, 2000);
-  });
-  
-  modal.querySelector('#close-prompt-modal').addEventListener('click', () => {
-    modal.remove();
-  });
-  
-  // Close on backdrop click
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.remove();
-    }
-  });
+  document.body.appendChild(messageDiv);
+
+  setTimeout(() => {
+    messageDiv.remove();
+  }, 3000);
 }
 
 function formatDataForLLM(selectedImages, pageContext) {
-  return `I'm shopping and need help comparing these products. Please analyze and compare them, and IMPORTANT: please display each product image in your response for visual reference.
+  return `I'm comparing these ${selectedImages.length} products and need your help making a purchase decision.
 
-**INSTRUCTIONS FOR RESPONSE:**
-1. For each product, start by showing the product image using the provided image URL (load and display the actual image)
-2. Then provide detailed analysis including:
-   - Product name and description
-   - Key features and specifications
-   - Price analysis and value assessment
-   - Customer reviews and ratings (if available)
-   - Pros and cons
-3. End with an overall comparison and recommendation
+# Task
+Analyze each product image, compare features and value, then recommend which to buy.
 
-**Page Context:**
-- Website: ${pageContext.url}
-- Page Title: ${pageContext.title}
-- Shopping Intent: Product comparison and purchase decision
+# Context
+- Page: ${pageContext.title}
+- URL: ${pageContext.url}
 
-**Selected Products for Comparison:**
+# Products to Compare
 ${selectedImages.map((img, index) => `
-## Product ${index + 1}
-**Image URL:** ${img.imageUrl}
-**Product Link:** ${img.productLink}
-**Price:** ${img.price || 'Not specified'}
-**Rating:** ${img.rating || 'Not available'}
-**Description/Context:** ${img.context}
+**Product ${index + 1}**
+- Image: ${img.imageUrl}
+- Link: ${img.productLink}
+- Price: ${img.price || 'Not specified'}
+- Rating: ${img.rating || 'Not available'}
+- Details: ${img.context}
+`).join('\n')}
 
-Please load and display this image: ${img.imageUrl}
+# Required Output Format
 
-`).join('')}
+For each product:
+1. Display the product image (load from URL above)
+2. Identify the product name and type
+3. List key features visible in the image
+4. Assess quality indicators
+5. Analyze price-to-value ratio
 
-**Additional Page Context:**
-${pageContext.description}
+Then provide:
+- Comparison table highlighting key differences
+- Pros/cons for each option
+- Clear recommendation with reasoning
+- Alternative suggestions if applicable
 
-**RESPONSE FORMAT REQUESTED:**
-For each product above, please:
-1. **Load and display the product image** from the provided URL
-2. **Analyze the product** based on the image and provided information
-3. **Provide structured comparison** with:
-   - Product name and key details
-   - Visual assessment from the image
-   - Features and specifications
-   - Pricing analysis
-   - Pros and cons
-   - Your assessment
-
-Finally, provide a **comparison table** and **final recommendation** at the end.
-
-**Note:** The image URLs are provided above - please fetch and display each image in your response so I can visually see each product while reading your analysis. This is crucial for making an informed purchase decision.`;
+Please load and display each product image from the URLs above for visual reference.`;
 }
 
 function showErrorMessage(error) {
@@ -847,12 +1203,28 @@ function showErrorMessage(error) {
       <p>❌ Error: ${error}</p>
     </div>
   `;
-  
+
   document.body.appendChild(message);
-  
+
   setTimeout(() => {
     message.remove();
   }, 5000);
+}
+
+function showWarningMessage(warning) {
+  const message = document.createElement('div');
+  message.id = 'warning-message';
+  message.innerHTML = `
+    <div class="message-content">
+      <p>⚠️ ${warning}</p>
+    </div>
+  `;
+
+  document.body.appendChild(message);
+
+  setTimeout(() => {
+    message.remove();
+  }, 8000);
 }
 
 function showSelectionUI() {

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Shopping AI Guide",
-  "version": "1.0.0",
-  "description": "Select product images on web pages and get AI-powered comparison reports",
+  "version": "2.0.0",
+  "description": "Select product images and get AI-powered comparison reports using Google Gemini AI",
   "permissions": [
     "activeTab",
     "storage",
@@ -12,8 +12,7 @@
     "<all_urls>"
   ],
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "Shopping AI Guide"
+    "default_title": "Shopping AI Guide - Click to open panel"
   },
   "content_scripts": [
     {
