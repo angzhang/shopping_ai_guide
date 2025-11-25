@@ -56,15 +56,14 @@ Context: ${pageContext.title}
 
 Products:
 ${selectedImages.map((img, index) => `
-Product ${index + 1}: ${img.price || 'Price not shown'} | ${img.rating || 'No rating'}
+Product ${index + 1}: ${img.price || 'Price not detected in text'} | ${img.rating || 'No rating'}
+Link: ${img.productLink || 'No link'}
 Details: ${img.context.substring(0, 200)}
 `).join('\n')}
 
-IMPORTANT: Format your response for a NARROW panel (420px wide). Use:
-- Short paragraphs (2-3 lines max)
-- Bullet points, not long prose
-- Vertical lists instead of wide tables
-- Concise language
+IMPORTANT INSTRUCTIONS:
+1. **PRICING IS CRITICAL**: If the "Price" above says "not detected" or is missing, YOU MUST LOOK AT THE IMAGE to find the price tag or price text. If you find it in the image, use that price. If absolutely no price is visible in text or image, estimate the price range based on the product type and brand if possible, but clearly label it as "Est.".
+2. **Format**: Format your response for a NARROW panel (420px wide).
 
 Required Format:
 
@@ -74,7 +73,7 @@ Required Format:
 
 **Best Choice:** Product [X]
 **Why:** [One key reason]
-**Price/Value:** [Quick assessment]
+**Price:** [State the price clearly. If you found it in the image, say so.]
 
 ---
 
@@ -96,11 +95,18 @@ Required Format:
 
 ---
 
-## 🔍 Key Differences
+## 🔍 Detailed Feature Comparison
 
-• **[Feature 1]:** Product X wins because...
-• **[Feature 2]:** Product Y offers...
-• **[Feature 3]:** Consider...
+• **Material & Quality:**
+  - Product 1: [Assessment]
+  - Product 2: [Assessment]
+
+• **User Rating Analysis:**
+  - Product 1: [Analyze rating/reviews if available]
+  - Product 2: [Analyze rating/reviews if available]
+
+• **Value for Money:**
+  - [Which offers better value and why?]
 
 ---
 

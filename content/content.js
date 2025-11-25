@@ -216,15 +216,15 @@ function removeSelectionOverlay() {
 function addImageHighlights() {
   // Add highlight animation styles
   addHighlightAnimation();
-  
+
   // Set up global click handler
   setupGlobalClickHandler();
-  
+
   // Wait a bit for images to load, especially on dynamic sites like Pinterest
   setTimeout(() => {
     const images = document.querySelectorAll('img');
     console.log('Found', images.length, 'total images'); // Debug log
-    
+
     let selectableCount = 0;
     images.forEach(img => {
       // Wait for image to load if not loaded yet
@@ -243,9 +243,9 @@ function addImageHighlights() {
         }
       }
     });
-    
+
     console.log('Made', selectableCount, 'images selectable'); // Debug log
-    
+
     // Also observe for new images added dynamically (Pinterest infinite scroll)
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -262,9 +262,9 @@ function addImageHighlights() {
         });
       });
     });
-    
+
     observer.observe(document.body, { childList: true, subtree: true });
-    
+
     // Store observer to disconnect later
     window.shoppingAIObserver = observer;
   }, 500);
@@ -275,14 +275,14 @@ function setupGlobalClickHandler() {
   if (window.shoppingAIClickHandler) {
     document.removeEventListener('click', window.shoppingAIClickHandler, true);
   }
-  
+
   // Create new global click handler
-  window.shoppingAIClickHandler = function(event) {
+  window.shoppingAIClickHandler = function (event) {
     // Check if we're in selection mode
     if (!isSelectionMode) return;
-    
+
     const target = event.target;
-    
+
     // Check if the clicked element is a selectable image
     if (target.tagName === 'IMG' && target.hasAttribute('data-shopping-ai-selectable')) {
       event.preventDefault();
@@ -290,7 +290,7 @@ function setupGlobalClickHandler() {
       handleImageSelection(target);
       return;
     }
-    
+
     // Check if we clicked on a wrapper div
     if (target.classList.contains('shopping-ai-wrapper')) {
       const img = target.querySelector('img');
@@ -301,7 +301,7 @@ function setupGlobalClickHandler() {
         return;
       }
     }
-    
+
     // Check if we clicked on a link that contains a selectable image or wrapper
     const link = target.closest('a');
     if (link) {
@@ -323,7 +323,7 @@ function setupGlobalClickHandler() {
       }
     }
   };
-  
+
   // Add the global click handler with capture to intercept before other handlers
   document.addEventListener('click', window.shoppingAIClickHandler, true);
 }
@@ -415,7 +415,7 @@ function setupImageSelection(img) {
 function addHighlightAnimation() {
   const styleId = 'shopping-ai-highlight-style';
   if (document.getElementById(styleId)) return;
-  
+
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
@@ -432,7 +432,7 @@ function isProductImage(img) {
   const alt = (img.alt || '').toLowerCase();
   const className = (img.className || '').toLowerCase();
   const currentDomain = window.location.hostname.toLowerCase();
-  
+
   // Pinterest-specific detection
   if (currentDomain.includes('pinterest')) {
     // Pinterest images are usually large and in specific containers
@@ -445,39 +445,39 @@ function isProductImage(img) {
       return img.width > 80 && img.height > 80;
     }
   }
-  
+
   // General exclusions (stricter)
   const excludeKeywords = ['logo', 'banner', 'nav', 'header', 'footer', 'icon', 'avatar', 'profile'];
   if (excludeKeywords.some(keyword => src.includes(keyword) || alt.includes(keyword) || className.includes(keyword))) {
     return false;
   }
-  
+
   // Size filter - be more permissive
   if (img.width < 80 || img.height < 80) {
     return false;
   }
-  
+
   // Skip very small images relative to viewport
   if (img.width < 50 || img.height < 50) {
     return false;
   }
-  
+
   // Product keywords (expanded)
   const productKeywords = ['product', 'item', 'buy', 'shop', 'price', 'cart', 'thumbnail', 'photo', 'image', 'pic'];
-  
+
   // Check if it matches product keywords OR is reasonably sized
-  const hasProductKeywords = productKeywords.some(keyword => 
+  const hasProductKeywords = productKeywords.some(keyword =>
     src.includes(keyword) || alt.includes(keyword) || className.includes(keyword)
   );
-  
+
   // For shopping sites, be more inclusive with larger images
   const shoppingSites = ['amazon', 'ebay', 'etsy', 'shopify', 'walmart', 'target', 'pinterest', 'aliexpress'];
   const isShoppingSite = shoppingSites.some(site => currentDomain.includes(site));
-  
+
   if (isShoppingSite && img.width > 120 && img.height > 120) {
     return true;
   }
-  
+
   return hasProductKeywords || (img.width > 150 && img.height > 150);
 }
 
@@ -487,26 +487,26 @@ function handleImageSelection(img) {
     console.error('Invalid image element');
     return;
   }
-  
+
   console.log('Image selected:', img.src); // Debug log
-  
+
   // Check if already selected
   const existingIndex = selectedImages.findIndex(item => item.imageUrl === img.src);
-  
+
   const wrapper = img.closest('.shopping-ai-wrapper');
-  
+
   if (existingIndex > -1) {
     // Remove selection
     selectedImages.splice(existingIndex, 1);
     img.classList.remove('selected-image', 'shopping-ai-just-selected');
     img.removeAttribute('data-shopping-ai-selected');
-    
+
     // Remove selection from wrapper if it exists
     if (wrapper) {
       wrapper.classList.remove('selected-image', 'shopping-ai-just-selected');
       wrapper.removeAttribute('data-shopping-ai-selected');
     }
-    
+
     // Add a visual feedback for deselection
     const targetElement = wrapper || img;
     targetElement.style.transition = 'all 0.3s ease';
@@ -514,7 +514,7 @@ function handleImageSelection(img) {
     setTimeout(() => {
       targetElement.style.transform = '';
     }, 200);
-    
+
     console.log('Image deselected, remaining:', selectedImages.length);
   } else {
     // Add selection
@@ -522,28 +522,28 @@ function handleImageSelection(img) {
     selectedImages.push(imageData);
     img.classList.add('selected-image');
     img.setAttribute('data-shopping-ai-selected', 'true');
-    
+
     // Add selection to wrapper if it exists
     if (wrapper) {
       wrapper.classList.add('selected-image');
       wrapper.setAttribute('data-shopping-ai-selected', 'true');
     }
-    
+
     // Add pulse animation for new selection
     const targetElement = wrapper || img;
     targetElement.classList.add('shopping-ai-just-selected');
     setTimeout(() => {
       targetElement.classList.remove('shopping-ai-just-selected');
     }, 600);
-    
+
     // Force a reflow to ensure styles are applied
     img.offsetHeight;
-    
+
     console.log('Image added, total selected:', selectedImages.length);
   }
-  
+
   updateSelectionUI();
-  
+
   // Also show a temporary selection indicator
   showSelectionFeedback(img, existingIndex === -1);
 }
@@ -635,7 +635,7 @@ function removeFeedback(img) {
   // Restore parent's position if we changed it
   if (img._parentPositionChanged) {
     if (img.parentElement) {
-        img.parentElement.style.position = img._originalParentPosition || '';
+      img.parentElement.style.position = img._originalParentPosition || '';
     }
     delete img._originalParentPosition;
     delete img._parentPositionChanged;
@@ -647,7 +647,7 @@ function extractImageData(img) {
   const context = extractProductContext(img);
   const price = extractPrice(img);
   const rating = extractRating(img);
-  
+
   return {
     imageUrl: img.src,
     productLink: productLink,
@@ -660,52 +660,119 @@ function extractImageData(img) {
 
 function findProductLink(img) {
   let current = img.parentElement;
-  
+
   while (current && current !== document.body) {
     if (current.tagName === 'A' && current.href) {
       return current.href;
     }
-    
+
     const link = current.querySelector('a[href]');
     if (link) {
       return link.href;
     }
-    
+
     current = current.parentElement;
   }
-  
+
   return window.location.href;
 }
 
 function extractProductContext(img) {
-  const container = img.closest('.product, .item, [class*="product"], [class*="item"]') || 
-                   img.parentElement;
-  
+  const container = img.closest('.product, .item, [class*="product"], [class*="item"]') ||
+    img.parentElement;
+
   const text = container ? container.innerText.trim() : '';
   const title = img.alt || img.title || '';
-  
+
   return `${title} ${text}`.substring(0, 500);
 }
 
 function extractPrice(img) {
-  const container = img.closest('.product, .item, [class*="product"], [class*="item"]') || 
-                   img.parentElement;
-  
-  if (!container) return null;
-  
-  const priceRegex = /[\$£€¥₹][\d,]+\.?\d*/g;
-  const text = container.innerText;
+  // 1. Try to find price in the immediate container or parents (Existing logic)
+  let current = img.parentElement;
+  let attempts = 0;
+  const maxLevels = 5;
+
+  while (current && attempts < maxLevels && current !== document.body) {
+    const priceElement = current.querySelector('[class*="price"], [class*="Price"], [class*="amount"], [class*="offer"], [id*="price"]');
+    if (priceElement) {
+      const priceMatch = extractPriceFromText(priceElement.innerText);
+      if (priceMatch) return priceMatch;
+    }
+
+    const containerPrice = extractPriceFromText(current.innerText);
+    if (containerPrice) return containerPrice;
+
+    current = current.parentElement;
+    attempts++;
+  }
+
+  // 2. Amazon Specific Logic (Global Page Search)
+  // If we are on Amazon and didn't find a local price, look for the main product price
+  if (window.location.hostname.includes('amazon')) {
+    const amazonSelectors = [
+      '#corePrice_feature_div',
+      '#corePriceDisplay_desktop_feature_div',
+      '#apex_desktop',
+      '.a-price.a-text-price.a-size-medium', // Common for deal prices
+      '.a-price .a-offscreen' // Hidden price text
+    ];
+
+    for (const selector of amazonSelectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        const price = extractPriceFromText(el.innerText || el.textContent);
+        if (price) return price;
+      }
+    }
+  }
+
+  // 3. Metadata / Structured Data (Global Fallback)
+  // Check for Open Graph or Product metadata
+  const metaPrice = document.querySelector('meta[property="og:price:amount"], meta[property="product:price:amount"], meta[name="twitter:data1"]');
+  if (metaPrice) {
+    const currency = document.querySelector('meta[property="og:price:currency"], meta[property="product:price:currency"]')?.content || '$';
+    return `${currency}${metaPrice.content}`;
+  }
+
+  // Check for JSON-LD (Schema.org)
+  const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of jsonLdScripts) {
+    try {
+      const data = JSON.parse(script.innerText);
+      // Handle array or single object
+      const items = Array.isArray(data) ? data : [data];
+      for (const item of items) {
+        if (item['@type'] === 'Product' && item.offers) {
+          const offer = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+          if (offer.price) {
+            return `${offer.priceCurrency || '$'}${offer.price}`;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  return null;
+}
+
+function extractPriceFromText(text) {
+  if (!text) return null;
+  // Regex for various currency formats: $10, $10.99, 10€, etc.
+  // Avoids matching years (2023) or simple numbers unless they have currency symbols
+  const priceRegex = /([$£€¥₹]|Rs\.|kr)\s*[\d,]+(\.\d{2})?|[\d,]+(\.\d{2})?\s*([$£€¥₹]|Rs\.|kr|EUR|USD|GBP)/gi;
   const matches = text.match(priceRegex);
-  
   return matches ? matches[0] : null;
 }
 
 function extractRating(img) {
-  const container = img.closest('.product, .item, [class*="product"], [class*="item"]') || 
-                   img.parentElement;
-  
+  const container = img.closest('.product, .item, [class*="product"], [class*="item"]') ||
+    img.parentElement;
+
   if (!container) return null;
-  
+
   const ratingElement = container.querySelector('[class*="rating"], [class*="star"], [class*="review"]');
   if (ratingElement) {
     const ratingText = ratingElement.innerText;
@@ -714,7 +781,7 @@ function extractRating(img) {
       return ratingMatch[1] || ratingMatch[2];
     }
   }
-  
+
   return null;
 }
 
@@ -969,7 +1036,7 @@ function formatMarkdownToHTML(text) {
     const trimmed = para.trim();
     if (!trimmed) return '';
     if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') ||
-        trimmed.startsWith('<li') || trimmed.startsWith('<hr')) {
+      trimmed.startsWith('<li') || trimmed.startsWith('<hr')) {
       return trimmed;
     }
     return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
@@ -1001,7 +1068,7 @@ function clearAllSelectionFeedback() {
       }, 300);
     }
   });
-  
+
   // Also remove any orphaned feedback elements
   const orphanedFeedbacks = document.querySelectorAll('.shopping-ai-selection-feedback');
   orphanedFeedbacks.forEach(feedback => {
@@ -1088,16 +1155,16 @@ function sendToLLM(provider) {
     title: document.title,
     description: getPageDescription()
   };
-  
+
   // Check if chrome.runtime is available
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
     console.error('Chrome extension runtime not available');
     showErrorMessage('Extension not properly loaded. Please refresh the page and try again.');
     return;
   }
-  
+
   console.log('Sending to LLM:', provider, 'with', selectedImages.length, 'images');
-  
+
   try {
     chrome.runtime.sendMessage({
       action: 'sendToLLM',
@@ -1113,7 +1180,7 @@ function sendToLLM(provider) {
         showErrorMessage('Extension communication error: ' + chrome.runtime.lastError.message);
         return;
       }
-      
+
       if (response && response.success) {
         showSuccessMessage(provider);
         disableSelectionMode();
@@ -1132,12 +1199,12 @@ function getPageDescription() {
   if (metaDescription) {
     return metaDescription.getAttribute('content');
   }
-  
+
   const firstParagraph = document.querySelector('p');
   if (firstParagraph) {
     return firstParagraph.innerText.substring(0, 200);
   }
-  
+
   return '';
 }
 
@@ -1228,9 +1295,9 @@ function showWarningMessage(warning) {
 }
 
 function showSelectionUI() {
-  
+
 }
 
 function hideSelectionUI() {
-  
+
 }
