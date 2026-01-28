@@ -644,6 +644,7 @@ function removeFeedback(img) {
 
 function extractImageData(img) {
   const productLink = findProductLink(img);
+  const title = extractTitle(img);
   const context = extractProductContext(img);
   const price = extractPrice(img);
   const rating = extractRating(img);
@@ -651,11 +652,39 @@ function extractImageData(img) {
   return {
     imageUrl: img.src,
     productLink: productLink,
+    title: title,
     context: context,
     price: price,
     rating: rating,
     element: img
   };
+}
+
+function extractTitle(img) {
+  // 1. Try to find title in the immediate container or parents
+  let current = img.parentElement;
+  let attempts = 0;
+  const maxLevels = 5;
+
+  while (current && attempts < maxLevels && current !== document.body) {
+    // Look for explicit title elements
+    // Prioritize H tags and specific classes
+    const titleElement = current.querySelector('h1, h2, h3, .title, .product-title, .product-name, .name, [class*="title"], [class*="name"]');
+
+    if (titleElement) {
+      const text = titleElement.innerText.trim();
+      // Avoid empty strings or very short generic text
+      if (text.length > 3) {
+        return text;
+      }
+    }
+
+    current = current.parentElement;
+    attempts++;
+  }
+
+  // Fallback to image attributes
+  return img.alt || img.title || 'Product';
 }
 
 function findProductLink(img) {

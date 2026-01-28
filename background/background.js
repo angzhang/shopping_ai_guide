@@ -56,14 +56,16 @@ Context: ${pageContext.title}
 
 Products:
 ${selectedImages.map((img, index) => `
-Product ${index + 1}: ${img.price || 'Price not detected in text'} | ${img.rating || 'No rating'}
+Product ${index + 1}: ${img.title || 'Unknown Product'}
+Price: ${img.price || 'Price not detected in text'} | ${img.rating || 'No rating'}
 Link: ${img.productLink || 'No link'}
 Details: ${img.context.substring(0, 200)}
 `).join('\n')}
 
 IMPORTANT INSTRUCTIONS:
-1. **PRICING IS CRITICAL**: If the "Price" above says "not detected" or is missing, YOU MUST LOOK AT THE IMAGE to find the price tag or price text. If you find it in the image, use that price. If absolutely no price is visible in text or image, estimate the price range based on the product type and brand if possible, but clearly label it as "Est.".
-2. **Format**: Format your response for a NARROW panel (420px wide).
+1. **USE PRODUCT NAMES**: Refer to products by their actual names (e.g., "Sony WH-1000XM5") instead of "Product 1".
+2. **PRICING IS CRITICAL**: If the "Price" above says "not detected" or is missing, YOU MUST LOOK AT THE IMAGE to find the price tag or price text. If you find it in the image, use that price. If absolutely no price is visible in text or image, estimate the price range based on the product type and brand if possible, but clearly label it as "Est.".
+3. **Format**: Format your response for a NARROW panel (420px wide).
 
 Required Format:
 
@@ -71,21 +73,21 @@ Required Format:
 
 [1-2 sentences: Which product wins and why?]
 
-**Best Choice:** Product [X]
+**Best Choice:** [Product Name]
 **Why:** [One key reason]
-**Price:** [State the price clearly. If you found it in the image, say so.]
+**Price:** [State the price clearly]
 
 ---
 
 ## 📊 Quick Comparison
 
-**Product 1:** [Name]
+**[Product Name 1]**
 • Price: [price]
 • Pros: [2-3 key pros]
 • Cons: [1-2 key cons]
 • Best for: [who/what]
 
-**Product 2:** [Name]
+**[Product Name 2]**
 • Price: [price]
 • Pros: [2-3 key pros]
 • Cons: [1-2 key cons]
@@ -98,12 +100,12 @@ Required Format:
 ## 🔍 Detailed Feature Comparison
 
 • **Material & Quality:**
-  - Product 1: [Assessment]
-  - Product 2: [Assessment]
+  - [Product Name 1]: [Assessment]
+  - [Product Name 2]: [Assessment]
 
 • **User Rating Analysis:**
-  - Product 1: [Analyze rating/reviews if available]
-  - Product 2: [Analyze rating/reviews if available]
+  - [Product Name 1]: [Analyze rating/reviews if available]
+  - [Product Name 2]: [Analyze rating/reviews if available]
 
 • **Value for Money:**
   - [Which offers better value and why?]
