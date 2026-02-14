@@ -144,6 +144,9 @@ function createSelectionOverlay() {
         </div>
 
         <button id="start-selection-btn" class="primary-btn">Start Selecting Products</button>
+        <div class="btn-divider">or</div>
+        <button id="auto-compare-btn" class="primary-btn auto-compare-btn">Auto-Compare All Products</button>
+        <div id="auto-compare-status" class="auto-compare-status" style="display: none;"></div>
       </div>
 
       <!-- Selection Section -->
@@ -188,6 +191,7 @@ function createSelectionOverlay() {
   // Event listeners
   console.log('Shopping AI Guide: Setting up event listeners...');
   document.getElementById('start-selection-btn').addEventListener('click', showSelectionView);
+  document.getElementById('auto-compare-btn').addEventListener('click', autoCompare);
   document.getElementById('back-to-settings').addEventListener('click', showSettingsView);
   document.getElementById('back-to-selection').addEventListener('click', showSelectionView);
   document.getElementById('clear-selection').addEventListener('click', clearSelection);
@@ -870,6 +874,12 @@ function showSettingsView() {
     loadingSection.style.display = 'none';
   }
 
+  // Reset auto-compare status
+  const autoCompareStatus = document.getElementById('auto-compare-status');
+  if (autoCompareStatus) {
+    autoCompareStatus.style.display = 'none';
+  }
+
   console.log('Shopping AI Guide: Settings view displayed');
 }
 
@@ -1109,6 +1119,112 @@ function clearAllSelectionFeedback() {
       }
     }, 300);
   });
+}
+
+const AUTO_COMPARE_MAX_PRODUCTS = 10;
+
+async function autoCompare() {
+  // Validate API key
+  const apiKey = document.getElementById('panel-api-key').value.trim();
+  if (!apiKey) {
+    showApiStatus('Please enter your Gemini API key first', 'error');
+    return;
+  }
+
+  // Show status message
+  const statusEl = document.getElementById('auto-compare-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Scanning page for products...';
+  statusEl.className = 'auto-compare-status info';
+
+  // Collect all product images using existing isProductImage()
+  const allImages = document.querySelectorAll('img');
+  const productImages = [];
+  const seenSrcs = new Set();
+
+  allImages.forEach(img => {
+    // Skip images inside our panel
+    if (img.closest('#shopping-ai-panel')) return;
+
+    // Deduplicate by src
+    if (seenSrcs.has(img.src)) return;
+
+    // Use existing detection function (only for loaded images)
+    if (img.naturalWidth > 0 && isProductImage(img)) {
+      productImages.push(img);
+      seenSrcs.add(img.src);
+    }
+  });
+
+  // Handle no products found
+  if (productImages.length === 0) {
+    statusEl.textContent = 'No product images found on this page. Try the manual selection instead.';
+    statusEl.className = 'auto-compare-status error';
+    return;
+  }
+
+  // Cap at max and extract data
+  const cappedImages = productImages.slice(0, AUTO_COMPARE_MAX_PRODUCTS);
+  const foundCount = productImages.length;
+  const usingCount = cappedImages.length;
+
+  let statusMessage = `Found ${foundCount} product${foundCount !== 1 ? 's' : ''}`;
+  if (foundCount > AUTO_COMPARE_MAX_PRODUCTS) {
+    statusMessage += ` (analyzing top ${usingCount})`;
+  }
+  statusMessage += '. Sending to Gemini AI...';
+  statusEl.textContent = statusMessage;
+
+  // Extract data using existing extractImageData()
+  selectedImages = cappedImages.map(img => extractImageData(img));
+
+  // Show loading view
+  showLoadingView();
+
+  // Send using existing message passing
+  const pageContext = {
+    url: window.location.href,
+    title: document.title,
+    description: getPageDescription()
+  };
+
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+    showErrorMessage('Extension not properly loaded. Please refresh the page and try again.');
+    showSettingsView();
+    return;
+  }
+
+  try {
+    chrome.runtime.sendMessage({
+      action: 'sendToGemini',
+      data: {
+        selectedImages: selectedImages,
+        pageContext: pageContext
+      }
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        showErrorMessage('Extension communication error: ' + chrome.runtime.lastError.message);
+        showSettingsView();
+        return;
+      }
+
+      if (response && response.success) {
+        if (response.data && response.data.analysis) {
+          showResults(response.data.analysis, selectedImages);
+
+          if (response.data.finishReason === 'MAX_TOKENS') {
+            showWarningMessage('Analysis may be incomplete due to length limits. Try fewer products.');
+          }
+        }
+      } else {
+        showErrorMessage(response ? response.error : 'Unknown error occurred');
+        showSettingsView();
+      }
+    });
+  } catch (error) {
+    showErrorMessage('Failed to communicate with extension. Please try reloading.');
+    showSettingsView();
+  }
 }
 
 async function sendToGemini() {
