@@ -143,24 +143,13 @@ function createSelectionOverlay() {
           </select>
         </div>
 
-        <button id="start-selection-btn" class="primary-btn">Start Selecting Products</button>
-      </div>
-
-      <!-- Selection Section -->
-      <div class="selection-section" id="selection-section" style="display: none;">
-        <button id="back-to-settings" class="back-btn">← Settings</button>
-        <div class="section-title">Selected Products</div>
-        <div class="selected-info">
-          <span class="selected-count">0 images selected</span>
-          <button id="clear-selection" class="secondary-btn">Clear All</button>
-        </div>
-        <div id="selected-thumbnails" class="thumbnails-grid"></div>
-        <button id="analyze-products" class="primary-btn" disabled>Analyze with Gemini AI</button>
+        <button id="auto-compare-btn" class="primary-btn auto-compare-btn">Auto-Compare All Products</button>
+        <div id="auto-compare-status" class="auto-compare-status" style="display: none;"></div>
       </div>
 
       <!-- Results Section -->
       <div class="results-section" id="results-section" style="display: none;">
-        <button id="back-to-selection" class="back-btn">← New Analysis</button>
+        <button id="back-to-settings-from-results" class="back-btn">← New Analysis</button>
         <div class="section-title">Analysis Results</div>
         <div id="product-images-preview" class="product-images-preview"></div>
         <div id="analysis-content" class="analysis-content"></div>
@@ -187,11 +176,8 @@ function createSelectionOverlay() {
 
   // Event listeners
   console.log('Shopping AI Guide: Setting up event listeners...');
-  document.getElementById('start-selection-btn').addEventListener('click', showSelectionView);
-  document.getElementById('back-to-settings').addEventListener('click', showSettingsView);
-  document.getElementById('back-to-selection').addEventListener('click', showSelectionView);
-  document.getElementById('clear-selection').addEventListener('click', clearSelection);
-  document.getElementById('analyze-products').addEventListener('click', sendToGemini);
+  document.getElementById('auto-compare-btn').addEventListener('click', autoCompare);
+  document.getElementById('back-to-settings-from-results').addEventListener('click', showSettingsView);
   document.getElementById('close-panel').addEventListener('click', disableSelectionMode);
   document.getElementById('panel-api-key').addEventListener('input', savePanelApiKey);
   document.getElementById('panel-api-key').addEventListener('blur', validatePanelApiKey);
@@ -815,31 +801,7 @@ function extractRating(img) {
 }
 
 function updateSelectionUI() {
-  console.log('Updating UI, selected images:', selectedImages.length);
-  if (selectionOverlay) {
-    const countElement = selectionOverlay.querySelector('.selected-count');
-    const analyzeButton = selectionOverlay.querySelector('#analyze-products');
-    const thumbnailsGrid = selectionOverlay.querySelector('#selected-thumbnails');
-
-    if (countElement) {
-      countElement.textContent = `${selectedImages.length} image${selectedImages.length !== 1 ? 's' : ''} selected`;
-    }
-
-    if (analyzeButton) {
-      analyzeButton.disabled = selectedImages.length === 0;
-    }
-
-    // Update thumbnails grid
-    if (thumbnailsGrid) {
-      thumbnailsGrid.innerHTML = '';
-      selectedImages.forEach(img => {
-        const thumbnailItem = document.createElement('div');
-        thumbnailItem.className = 'thumbnail-item';
-        thumbnailItem.innerHTML = `<img src="${img.imageUrl}" alt="Product">`;
-        thumbnailsGrid.appendChild(thumbnailItem);
-      });
-    }
-  }
+  // No-op: selection UI removed, auto-compare handles product gathering
 }
 
 // Panel view management
@@ -847,7 +809,6 @@ function showSettingsView() {
   console.log('Shopping AI Guide: showSettingsView() called');
 
   const settingsSection = document.getElementById('settings-section');
-  const selectionSection = document.getElementById('selection-section');
   const resultsSection = document.getElementById('results-section');
   const loadingSection = document.getElementById('loading-section');
 
@@ -858,10 +819,6 @@ function showSettingsView() {
     console.error('Shopping AI Guide: settings-section not found!');
   }
 
-  if (selectionSection) {
-    selectionSection.style.display = 'none';
-  }
-
   if (resultsSection) {
     resultsSection.style.display = 'none';
   }
@@ -870,36 +827,23 @@ function showSettingsView() {
     loadingSection.style.display = 'none';
   }
 
-  console.log('Shopping AI Guide: Settings view displayed');
-}
-
-function showSelectionView() {
-  const apiKey = document.getElementById('panel-api-key').value.trim();
-
-  if (!apiKey) {
-    showApiStatus('Please enter your Gemini API key first', 'error');
-    return;
+  // Reset auto-compare status
+  const autoCompareStatus = document.getElementById('auto-compare-status');
+  if (autoCompareStatus) {
+    autoCompareStatus.style.display = 'none';
   }
 
-  document.getElementById('settings-section').style.display = 'none';
-  document.getElementById('selection-section').style.display = 'block';
-  document.getElementById('results-section').style.display = 'none';
-  document.getElementById('loading-section').style.display = 'none';
-
-  // Enable image highlights when showing selection view
-  addImageHighlights();
+  console.log('Shopping AI Guide: Settings view displayed');
 }
 
 function showResultsView() {
   document.getElementById('settings-section').style.display = 'none';
-  document.getElementById('selection-section').style.display = 'none';
   document.getElementById('results-section').style.display = 'block';
   document.getElementById('loading-section').style.display = 'none';
 }
 
 function showLoadingView() {
   document.getElementById('settings-section').style.display = 'none';
-  document.getElementById('selection-section').style.display = 'none';
   document.getElementById('results-section').style.display = 'none';
   document.getElementById('loading-section').style.display = 'block';
 }
@@ -1013,14 +957,21 @@ function showResults(analysis, images = null) {
   if (imagesPreview && images && images.length > 0) {
     imagesPreview.innerHTML = `
       <div class="product-images-grid">
-        ${images.map((img, index) => `
+        ${images.map((img, index) => {
+          const name = img.title || `Product ${index + 1}`;
+          const hasLink = img.productLink && img.productLink !== window.location.href;
+          const linkOpen = hasLink ? `<a href="${img.productLink}" target="_blank" rel="noopener noreferrer" class="product-image-link">` : '<div class="product-image-link">';
+          const linkClose = hasLink ? '</a>' : '</div>';
+          return `
           <div class="product-image-card">
-            <div class="product-image-wrapper">
-              <img src="${img.imageUrl}" alt="Product ${index + 1}">
-            </div>
-            <div class="product-number">Product ${index + 1}</div>
-          </div>
-        `).join('')}
+            ${linkOpen}
+              <div class="product-image-wrapper">
+                <img src="${img.imageUrl}" alt="${name}">
+              </div>
+              <div class="product-name-label">${name}</div>
+            ${linkClose}
+          </div>`;
+        }).join('')}
       </div>
     `;
   }
@@ -1111,6 +1062,112 @@ function clearAllSelectionFeedback() {
   });
 }
 
+const AUTO_COMPARE_MAX_PRODUCTS = 10;
+
+async function autoCompare() {
+  // Validate API key
+  const apiKey = document.getElementById('panel-api-key').value.trim();
+  if (!apiKey) {
+    showApiStatus('Please enter your Gemini API key first', 'error');
+    return;
+  }
+
+  // Show status message
+  const statusEl = document.getElementById('auto-compare-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Scanning page for products...';
+  statusEl.className = 'auto-compare-status info';
+
+  // Collect all product images using existing isProductImage()
+  const allImages = document.querySelectorAll('img');
+  const productImages = [];
+  const seenSrcs = new Set();
+
+  allImages.forEach(img => {
+    // Skip images inside our panel
+    if (img.closest('#shopping-ai-panel')) return;
+
+    // Deduplicate by src
+    if (seenSrcs.has(img.src)) return;
+
+    // Use existing detection function (only for loaded images)
+    if (img.naturalWidth > 0 && isProductImage(img)) {
+      productImages.push(img);
+      seenSrcs.add(img.src);
+    }
+  });
+
+  // Handle no products found
+  if (productImages.length === 0) {
+    statusEl.textContent = 'No product images found on this page. Try the manual selection instead.';
+    statusEl.className = 'auto-compare-status error';
+    return;
+  }
+
+  // Cap at max and extract data
+  const cappedImages = productImages.slice(0, AUTO_COMPARE_MAX_PRODUCTS);
+  const foundCount = productImages.length;
+  const usingCount = cappedImages.length;
+
+  let statusMessage = `Found ${foundCount} product${foundCount !== 1 ? 's' : ''}`;
+  if (foundCount > AUTO_COMPARE_MAX_PRODUCTS) {
+    statusMessage += ` (analyzing top ${usingCount})`;
+  }
+  statusMessage += '. Sending to Gemini AI...';
+  statusEl.textContent = statusMessage;
+
+  // Extract data using existing extractImageData()
+  selectedImages = cappedImages.map(img => extractImageData(img));
+
+  // Show loading view
+  showLoadingView();
+
+  // Send using existing message passing
+  const pageContext = {
+    url: window.location.href,
+    title: document.title,
+    description: getPageDescription()
+  };
+
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+    showErrorMessage('Extension not properly loaded. Please refresh the page and try again.');
+    showSettingsView();
+    return;
+  }
+
+  try {
+    chrome.runtime.sendMessage({
+      action: 'sendToGemini',
+      data: {
+        selectedImages: selectedImages,
+        pageContext: pageContext
+      }
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        showErrorMessage('Extension communication error: ' + chrome.runtime.lastError.message);
+        showSettingsView();
+        return;
+      }
+
+      if (response && response.success) {
+        if (response.data && response.data.analysis) {
+          showResults(response.data.analysis, selectedImages);
+
+          if (response.data.finishReason === 'MAX_TOKENS') {
+            showWarningMessage('Analysis may be incomplete due to length limits. Try fewer products.');
+          }
+        }
+      } else {
+        showErrorMessage(response ? response.error : 'Unknown error occurred');
+        showSettingsView();
+      }
+    });
+  } catch (error) {
+    showErrorMessage('Failed to communicate with extension. Please try reloading.');
+    showSettingsView();
+  }
+}
+
 async function sendToGemini() {
   if (selectedImages.length === 0) {
     showErrorMessage('Please select at least one product image first.');
@@ -1133,7 +1190,7 @@ async function sendToGemini() {
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
     console.error('Chrome extension runtime not available');
     showErrorMessage('Extension not properly loaded. Please refresh the page and try again.');
-    showSelectionView();
+    showSettingsView();
     return;
   }
 
@@ -1151,7 +1208,7 @@ async function sendToGemini() {
       if (chrome.runtime.lastError) {
         console.error('Chrome runtime error:', chrome.runtime.lastError);
         showErrorMessage('Extension communication error: ' + chrome.runtime.lastError.message);
-        showSelectionView();
+        showSettingsView();
         return;
       }
 
@@ -1167,13 +1224,13 @@ async function sendToGemini() {
         }
       } else {
         showErrorMessage(response ? response.error : 'Unknown error occurred');
-        showSelectionView();
+        showSettingsView();
       }
     });
   } catch (error) {
     console.error('Error sending message to background:', error);
     showErrorMessage('Failed to communicate with extension background. Please try reloading the extension.');
-    showSelectionView();
+    showSettingsView();
   }
 }
 
