@@ -700,22 +700,80 @@ function extractTitle(img) {
 }
 
 function findProductLink(img) {
+  // Patterns that indicate a direct product page (preferred)
+  const PRODUCT_PATTERNS = [
+    /\/dp\/[A-Z0-9]{10}/i,          // Amazon /dp/ASIN
+    /\/gp\/product\/[A-Z0-9]{10}/i, // Amazon /gp/product/ASIN
+    /\/ip\//i,                       // Walmart
+    /\/p\//i,                        // Target, Best Buy
+    /\/product\//i,                  // Generic
+    /\/item\//i,                     // Generic
+  ];
+
+  // Patterns that indicate a bad link (tracking redirect, store page, ad)
+  const REJECT_PATTERNS = [
+    /aax-us-east/i,           // Amazon tracking redirect
+    /\/x\/c\//i,              // Amazon ad click tracking
+    /\/stores\/page\//i,      // Amazon store pages
+    /\/s\?/i,                 // Amazon search results
+    /\/b\?/i,                 // Amazon browse
+    /clicktrack/i,
+    /adclick/i,
+    /doubleclick/i,
+  ];
+
+  // Decode an Amazon /sspa/click? or /x/c/ redirect to get the real product URL
+  const decodeAmazonRedirect = (href) => {
+    try {
+      // /sspa/click?...url=%2FBrand%2Fdp%2FASIN%2F...
+      const urlParam = new URL(href).searchParams.get('url');
+      if (urlParam) {
+        const decoded = decodeURIComponent(urlParam);
+        // decoded starts with /path — make absolute
+        if (decoded.startsWith('/')) return 'https://www.amazon.com' + decoded.split('?')[0];
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  };
+
+  const resolveHref = (href) => {
+    // Try to unwrap Amazon redirect URLs first
+    if (/\/sspa\/click|aax-us-east|\/x\/c\//i.test(href)) {
+      return decodeAmazonRedirect(href) || null;
+    }
+    return href;
+  };
+
+  const isGoodLink = (href) => {
+    if (!href || href === window.location.href) return false;
+    if (REJECT_PATTERNS.some(p => p.test(href))) return false;
+    return true;
+  };
+
+  const isPreferredLink = (href) => PRODUCT_PATTERNS.some(p => p.test(href));
+
+  // Collect all candidate <a> tags by walking up from the image (limit depth)
+  const candidates = [];
   let current = img.parentElement;
-
-  while (current && current !== document.body) {
-    if (current.tagName === 'A' && current.href) {
-      return current.href;
-    }
-
-    const link = current.querySelector('a[href]');
-    if (link) {
-      return link.href;
-    }
-
+  let depth = 0;
+  while (current && current !== document.body && depth < 8) {
+    const anchors = current.tagName === 'A' ? [current] : Array.from(current.querySelectorAll('a[href]'));
+    anchors.forEach(a => {
+      const resolved = resolveHref(a.href);
+      if (resolved && isGoodLink(resolved)) candidates.push(resolved);
+    });
     current = current.parentElement;
+    depth++;
   }
 
-  return window.location.href;
+  // Prefer direct product page links first
+  const preferred = candidates.find(isPreferredLink);
+  if (preferred) return preferred;
+
+  // Fall back to first acceptable link
+  if (candidates.length > 0) return candidates[0];
+
+  return null;
 }
 
 function extractProductContext(img) {
@@ -1155,6 +1213,16 @@ async function autoCompare() {
     '.nav-cart', '.nav-flyout', '.nav-sprite',
     // Amazon right-hand "your cart" flyout column
     '#attach-swatch-detail-page-dp', '.ewc-subtotal',
+    // Amazon sponsored brand banners / store logo carousels
+    '[data-component-type="s-impression-logger"] [data-component-type="s-ads-metrics"]',
+    '.s-sponsored-label-info-icon',
+    '[data-component-type="s-ads-metrics"]',
+    '.puis-sponsored-label-text',
+    // Brand store page cards (Canon, Lexmark store page ads)
+    '[data-component-type="s-search-result"] .s-image[alt="CANON"]',
+    '[class*="octopus"]',   // Amazon brand carousel widget
+    '[id*="octopus"]',
+    '.aok-hidden',
     // Generic sidebar patterns
     '[class*="sidebar"]', '[id*="sidebar"]',
     '[class*="cart"]', '[id*="cart"]',
@@ -1184,20 +1252,33 @@ async function autoCompare() {
     return;
   }
 
+  // Extract data and filter out brand store pages (no link + single-word title)
+  const extractedAll = productImages.map(img => extractImageData(img));
+  const validImages = extractedAll.filter(data => {
+    // Reject if no product link and title is just a brand name (≤ 2 words)
+    if (!data.productLink) {
+      const wordCount = (data.title || '').trim().split(/\s+/).length;
+      if (wordCount <= 2) return false;
+    }
+    // Reject titles that are "Go to store page for X" patterns
+    if (/^go to store page/i.test(data.title || '')) return false;
+    return true;
+  });
+
   // Cap at max and extract data
-  const cappedImages = productImages.slice(0, AUTO_COMPARE_MAX_PRODUCTS);
+  const cappedImages = validImages.slice(0, AUTO_COMPARE_MAX_PRODUCTS);
   const foundCount = productImages.length;
   const usingCount = cappedImages.length;
 
-  let statusMessage = `Found ${foundCount} product${foundCount !== 1 ? 's' : ''}`;
-  if (foundCount > AUTO_COMPARE_MAX_PRODUCTS) {
+  let statusMessage = `Found ${validImages.length} product${validImages.length !== 1 ? 's' : ''}`;
+  if (validImages.length > AUTO_COMPARE_MAX_PRODUCTS) {
     statusMessage += ` (analyzing top ${usingCount})`;
   }
   statusMessage += '. Sending to Gemini AI...';
   statusEl.textContent = statusMessage;
 
-  // Extract data using existing extractImageData()
-  selectedImages = cappedImages.map(img => extractImageData(img));
+  // cappedImages are already extracted data objects
+  selectedImages = cappedImages;
 
   // Show loading view
   showLoadingView();

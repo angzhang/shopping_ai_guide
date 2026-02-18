@@ -78,63 +78,61 @@ async function fetchProductPageDetails(url) {
   }
 
   const html = await response.text();
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-
-  // Remove noise elements
-  ['script', 'style', 'nav', 'header', 'footer', 'iframe', 'noscript'].forEach(tag => {
-    doc.querySelectorAll(tag).forEach(el => el.remove());
-  });
-
   const result = {};
 
-  // --- Product description ---
-  const descSelectors = [
-    // Amazon
-    '#productDescription', '#feature-bullets', '#aplus',
-    '[data-feature-name="productDescription"]',
-    // Generic
-    '[class*="product-description"]', '[class*="productDescription"]',
-    '[class*="product-detail"]', '[class*="productDetail"]',
-    '[itemprop="description"]',
-  ];
-  for (const sel of descSelectors) {
-    const el = doc.querySelector(sel);
-    if (el) {
-      result.description = el.innerText?.trim() || el.textContent?.trim();
-      if (result.description) break;
-    }
-  }
+  // --- Product description (regex-based, works in service workers) ---
+  // Try each ID/class pattern by extracting innerHTML between tags
+  result.description = extractHtmlSection(html, [
+    /id="productDescription"[^>]*>([\s\S]*?)<\/div>/i,
+    /id="feature-bullets"[^>]*>([\s\S]*?)<\/div>/i,
+    /class="[^"]*product-description[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /itemprop="description"[^>]*>([\s\S]*?)<\/(?:div|span|p)>/i,
+  ]);
 
-  // --- Specifications ---
-  const specSelectors = [
-    '#productDetails_techSpec_section_1', '#productDetails_detailBullets_sections1',
-    '[class*="specifications"]', '[class*="tech-spec"]', '[class*="techSpec"]',
-  ];
-  for (const sel of specSelectors) {
-    const el = doc.querySelector(sel);
-    if (el) {
-      result.specs = el.innerText?.trim() || el.textContent?.trim();
-      if (result.specs) break;
-    }
-  }
+  result.specs = extractHtmlSection(html, [
+    /id="productDetails_techSpec_section_1"[^>]*>([\s\S]*?)<\/table>/i,
+    /id="productDetails_detailBullets_sections1"[^>]*>([\s\S]*?)<\/div>/i,
+  ]);
 
   // --- Customer reviews ---
-  // Amazon loads reviews via JS, so try the static /product-reviews/ page instead
-  result.reviews = await fetchAmazonReviews(url, doc);
+  // DOMParser is not available in service workers, so use regex extraction
+  result.reviews = await fetchReviewsText(url, html);
 
   return result;
 }
 
-async function fetchAmazonReviews(productUrl, productDoc) {
-  // Try extracting reviews from the already-fetched product page doc first
-  const reviewTexts = extractReviewsFromDoc(productDoc);
-  if (reviewTexts.length > 0) {
-    return reviewTexts.slice(0, 5).map(r => r.substring(0, 400)).join('\n---\n');
+// Extract text content from the first matching regex pattern in raw HTML
+function extractHtmlSection(html, patterns) {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) {
+      const text = stripHtmlTags(match[1]).trim();
+      if (text.length > 20) return text.substring(0, 500);
+    }
+  }
+  return null;
+}
+
+// Strip HTML tags and decode common entities
+function stripHtmlTags(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+async function fetchReviewsText(productUrl, productHtml) {
+  // First try extracting from product page HTML directly
+  const texts = extractReviewsFromHtml(productHtml);
+  if (texts.length > 0) {
+    return texts.slice(0, 5).map(r => r.substring(0, 400)).join('\n---\n');
   }
 
-  // For Amazon, derive the /product-reviews/<ASIN> URL and fetch it separately
-  // Amazon product URLs look like: /dp/ASIN or /gp/product/ASIN
+  // For Amazon, fetch the dedicated static reviews page /product-reviews/<ASIN>
   const asinMatch = productUrl.match(/(?:\/dp\/|\/gp\/product\/)([A-Z0-9]{10})/i);
   if (asinMatch) {
     const asin = asinMatch[1];
@@ -148,12 +146,10 @@ async function fetchAmazonReviews(productUrl, productDoc) {
         }
       });
       if (resp.ok) {
-        const html = await resp.text();
-        const parser = new DOMParser();
-        const reviewDoc = parser.parseFromString(html, 'text/html');
-        const texts = extractReviewsFromDoc(reviewDoc);
-        if (texts.length > 0) {
-          return texts.slice(0, 5).map(r => r.substring(0, 400)).join('\n---\n');
+        const reviewHtml = await resp.text();
+        const reviewTexts = extractReviewsFromHtml(reviewHtml);
+        if (reviewTexts.length > 0) {
+          return reviewTexts.slice(0, 5).map(r => r.substring(0, 400)).join('\n---\n');
         }
       }
     } catch (e) {
@@ -164,32 +160,26 @@ async function fetchAmazonReviews(productUrl, productDoc) {
   return null;
 }
 
-function extractReviewsFromDoc(doc) {
-  // Ordered from most specific to most generic
-  const reviewSelectors = [
-    '[data-hook="review-body"]',       // Amazon review body text
-    '[data-hook="review"]',            // Amazon review container
-    '#cm-cr-dp-review-list .review',   // Amazon review list items
-    '.review-text-content',
-    '[class*="review-body"]',
-    '[class*="reviewBody"]',
-    '[class*="review-text"]',
-    '[class*="reviewText"]',
-    '[class*="customer-review"]',
-    '[itemprop="reviewBody"]',
-    '[itemprop="review"]',
-  ];
+function extractReviewsFromHtml(html) {
+  const texts = [];
 
-  for (const sel of reviewSelectors) {
-    const els = doc.querySelectorAll(sel);
-    const texts = [];
-    els.forEach(el => {
-      const text = (el.innerText || el.textContent || '').trim();
-      if (text.length > 30) texts.push(text);
-    });
-    if (texts.length > 0) return texts;
+  // Amazon: data-hook="review-body" spans contain the review text
+  const reviewBodyRe = /data-hook="review-body"[^>]*>([\s\S]*?)<\/span>/gi;
+  let m;
+  while ((m = reviewBodyRe.exec(html)) !== null) {
+    const text = stripHtmlTags(m[1]).trim();
+    if (text.length > 30) texts.push(text);
   }
-  return [];
+  if (texts.length > 0) return texts;
+
+  // Generic: elements with class containing "review-text" or "reviewText"
+  const genericRe = /class="[^"]*(?:review-text|reviewText|review-body|reviewBody)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|p)>/gi;
+  while ((m = genericRe.exec(html)) !== null) {
+    const text = stripHtmlTags(m[1]).trim();
+    if (text.length > 30) texts.push(text);
+  }
+
+  return texts;
 }
 
 function formatDataForLLM(selectedImages, pageContext) {
@@ -214,7 +204,7 @@ IMPORTANT INSTRUCTIONS:
 1. **USE PRODUCT NAMES**: Refer to products by their actual full model names (e.g., "Sony WH-1000XM5 Wireless Headphones"). Look at the image and the Details field to determine the exact model name — do NOT use generic names like "CANON (Generic Printer)". If the title looks too generic, use what you can see in the image or details instead.
 2. **PRICING IS CRITICAL**: If the "Price" above says "not detected" or is missing, YOU MUST LOOK AT THE IMAGE to find the price tag or price text. If you find it in the image, use that price. If absolutely no price is visible in text or image, estimate the price range based on the product type and brand if possible, but clearly label it as "Est.".
 3. **Format**: Format your response for a NARROW panel (420px wide).
-4. **LINKS**: For each product that has a Link above (not "No link"), make the product name itself a markdown link using the exact URL from the "Link:" field above (e.g., **[Product Name](url)**). Do NOT add a separate "View Product" bullet — the product name should be the clickable link.
+4. **LINKS**: If a product has a Link (not "No link"), format the product name as a markdown link using ONLY the exact URL — no extra text, no HTML attributes. Format: **[Product Name](https://exact-url-here)** — the URL must be the raw URL only, nothing else inside the parentheses.
 5. **REVIEWS**: If Customer Reviews are provided above, incorporate key sentiments (common praise, common complaints) into your Pros/Cons and User Rating Analysis. Quote specific reviewer concerns where relevant.
 
 Required Format:
@@ -223,7 +213,7 @@ Required Format:
 
 [1-2 sentences: Which product wins and why?]
 
-**Best Choice:** [Product Name](link url if available, otherwise just the name)
+**Best Choice:** **[Actual Product Name](https://actual-url-or-omit-if-no-link)**
 **Why:** [One key reason]
 **Price:** [State the price clearly]
 
@@ -231,13 +221,13 @@ Required Format:
 
 ## 📊 Quick Comparison
 
-**[Product Name 1](link url if available, otherwise just the name)**
+**[Actual Product Name 1](https://actual-url-or-omit-if-no-link)**
 • Price: [price]
 • Pros: [2-3 key pros]
 • Cons: [1-2 key cons]
 • Best for: [who/what]
 
-**[Product Name 2](link url if available, otherwise just the name)**
+**[Actual Product Name 2](https://actual-url-or-omit-if-no-link)**
 • Price: [price]
 • Pros: [2-3 key pros]
 • Cons: [1-2 key cons]
