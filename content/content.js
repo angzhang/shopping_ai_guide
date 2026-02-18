@@ -162,7 +162,7 @@ function createSelectionOverlay() {
       <!-- Loading Section -->
       <div id="loading-section" class="loading-section" style="display: none;">
         <div class="loading-spinner"></div>
-        <p>Analyzing products with Gemini AI...</p>
+        <p id="loading-message">Fetching product details & reviews...</p>
       </div>
     </div>
   `;
@@ -1038,16 +1038,24 @@ function formatMarkdownToHTML(text) {
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
 
-  // Bold+Link combined: **[text](url)** → <strong><a>text</a></strong>
-  // Greedily consume everything up to the last ) before ** to handle URLs with parens
-  html = html.replace(/\*\*\[([^\]]+)\]\((https?:\/\/.+?)\)\*\*/g, '<strong><a href="$2" target="_blank" rel="noopener noreferrer">$1</a></strong>');
+  // Helper: sanitize a URL captured from markdown — strip any HTML attributes
+  // the LLM may have injected (e.g. `url" target="_blank" rel="..."`)
+  const sanitizeUrl = (url) => url.split(/["'\s]/)[0].replace(/[.,;:!?]+$/, '');
 
-  // Links [text](url) — consume everything up to the closing ) to handle URLs with parens
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Bold+Link combined: **[text](url)**
+  html = html.replace(/\*\*\[([^\]]+)\]\((https?:\/\/.+?)\)\*\*/g, (_, text, url) => {
+    const clean = sanitizeUrl(url);
+    return `<strong><a href="${clean}" target="_blank" rel="noopener noreferrer">${text}</a></strong>`;
+  });
 
-  // Auto-link bare URLs not already inside an href (skip if preceded by href=")
+  // Links [text](url)
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/.+?)\)/g, (_, text, url) => {
+    const clean = sanitizeUrl(url);
+    return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+  });
+
+  // Auto-link bare URLs not already inside an href
   html = html.replace(/(?<!href=")(https?:\/\/[^\s<"]+)/g, (match) => {
-    // Strip trailing punctuation that's unlikely to be part of the URL
     const clean = match.replace(/[.,;:!?)]+$/, '');
     return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>`;
   });
