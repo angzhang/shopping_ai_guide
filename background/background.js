@@ -1,28 +1,28 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Shopping AI Guide extension installed');
+  console.log('AI Shopping Assistant extension installed');
 });
 
 chrome.action.onClicked.addListener((tab) => {
-  console.log('Shopping AI Guide: Extension icon clicked');
-  console.log('Shopping AI Guide: Tab ID:', tab.id);
-  console.log('Shopping AI Guide: Tab URL:', tab.url);
-  console.log('Shopping AI Guide: Executing script to toggle image selection...');
+  console.log('AI Shopping Assistant: Extension icon clicked');
+  console.log('AI Shopping Assistant: Tab ID:', tab.id);
+  console.log('AI Shopping Assistant: Tab URL:', tab.url);
+  console.log('AI Shopping Assistant: Executing script to toggle image selection...');
 
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
     function: toggleImageSelection
   }).then(() => {
-    console.log('Shopping AI Guide: Script executed successfully');
+    console.log('AI Shopping Assistant: Script executed successfully');
   }).catch((error) => {
-    console.error('Shopping AI Guide: Script execution failed:', error);
+    console.error('AI Shopping Assistant: Script execution failed:', error);
   });
 });
 
 function toggleImageSelection() {
-  console.log('Shopping AI Guide: toggleImageSelection() function called in page context');
-  console.log('Shopping AI Guide: Posting TOGGLE_IMAGE_SELECTION message...');
+  console.log('AI Shopping Assistant: toggleImageSelection() function called in page context');
+  console.log('AI Shopping Assistant: Posting TOGGLE_IMAGE_SELECTION message...');
   window.postMessage({ type: 'TOGGLE_IMAGE_SELECTION' }, '*');
-  console.log('Shopping AI Guide: Message posted');
+  console.log('AI Shopping Assistant: Message posted');
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -63,9 +63,10 @@ Details: ${img.context.substring(0, 200)}
 `).join('\n')}
 
 IMPORTANT INSTRUCTIONS:
-1. **USE PRODUCT NAMES**: Refer to products by their actual names (e.g., "Sony WH-1000XM5") instead of "Product 1".
+1. **USE PRODUCT NAMES**: Refer to products by their actual full model names (e.g., "Sony WH-1000XM5 Wireless Headphones"). Look at the image and the Details field to determine the exact model name — do NOT use generic names like "CANON (Generic Printer)". If the title looks too generic, use what you can see in the image or details instead.
 2. **PRICING IS CRITICAL**: If the "Price" above says "not detected" or is missing, YOU MUST LOOK AT THE IMAGE to find the price tag or price text. If you find it in the image, use that price. If absolutely no price is visible in text or image, estimate the price range based on the product type and brand if possible, but clearly label it as "Est.".
 3. **Format**: Format your response for a NARROW panel (420px wide).
+4. **LINKS**: For each product that has a Link above (not "No link"), make the product name itself a markdown link using the exact URL from the "Link:" field above (e.g., **[Product Name](url)**). Do NOT add a separate "View Product" bullet — the product name should be the clickable link.
 
 Required Format:
 
@@ -73,7 +74,7 @@ Required Format:
 
 [1-2 sentences: Which product wins and why?]
 
-**Best Choice:** [Product Name]
+**Best Choice:** [Product Name](link url if available, otherwise just the name)
 **Why:** [One key reason]
 **Price:** [State the price clearly]
 
@@ -81,13 +82,13 @@ Required Format:
 
 ## 📊 Quick Comparison
 
-**[Product Name 1]**
+**[Product Name 1](link url if available, otherwise just the name)**
 • Price: [price]
 • Pros: [2-3 key pros]
 • Cons: [1-2 key cons]
 • Best for: [who/what]
 
-**[Product Name 2]**
+**[Product Name 2](link url if available, otherwise just the name)**
 • Price: [price]
 • Pros: [2-3 key pros]
 • Cons: [1-2 key cons]
@@ -249,7 +250,8 @@ async function handleGeminiAPI(formattedData) {
       message: 'Gemini API analysis complete',
       analysis: responseText,
       images: formattedData.selectedImages,
-      finishReason: finishReason
+      finishReason: finishReason,
+      prompt: formattedData.prompt
     };
   } catch (error) {
     console.error('Error calling Gemini API:', error);

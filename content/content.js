@@ -5,7 +5,7 @@ let selectionOverlay = null;
 // Check if extension context is available
 function checkExtensionContext() {
   if (typeof chrome === 'undefined' || !chrome.runtime) {
-    console.error('Shopping AI Guide: Extension context not available');
+    console.error('AI Shopping Assistant: Extension context not available');
     return false;
   }
   return true;
@@ -14,13 +14,13 @@ function checkExtensionContext() {
 // Initialize the content script
 function initialize() {
   if (!checkExtensionContext()) {
-    console.error('Shopping AI Guide: Failed to initialize - extension context unavailable');
+    console.error('AI Shopping Assistant: Failed to initialize - extension context unavailable');
     return;
   }
 
-  console.log('Shopping AI Guide: Content script initialized successfully');
-  console.log('Shopping AI Guide: Ready to receive messages');
-  console.log('Shopping AI Guide: isSelectionMode =', isSelectionMode);
+  console.log('AI Shopping Assistant: Content script initialized successfully');
+  console.log('AI Shopping Assistant: Ready to receive messages');
+  console.log('AI Shopping Assistant: isSelectionMode =', isSelectionMode);
 }
 
 // Initialize when DOM is ready
@@ -32,60 +32,60 @@ if (document.readyState === 'loading') {
 
 window.addEventListener('message', (event) => {
   // Log all messages to help debug
-  console.log('Shopping AI Guide: Message received:', event.data);
+  console.log('AI Shopping Assistant: Message received:', event.data);
 
   if (event.data && event.data.type === 'TOGGLE_IMAGE_SELECTION') {
-    console.log('Shopping AI Guide: TOGGLE_IMAGE_SELECTION message detected');
-    console.log('Shopping AI Guide: Extension context available:', checkExtensionContext());
-    console.log('Shopping AI Guide: Current selection mode:', isSelectionMode);
+    console.log('AI Shopping Assistant: TOGGLE_IMAGE_SELECTION message detected');
+    console.log('AI Shopping Assistant: Extension context available:', checkExtensionContext());
+    console.log('AI Shopping Assistant: Current selection mode:', isSelectionMode);
 
     if (checkExtensionContext()) {
       toggleSelectionMode();
     } else {
-      console.error('Shopping AI Guide: Cannot toggle - extension context unavailable');
+      console.error('AI Shopping Assistant: Cannot toggle - extension context unavailable');
     }
   }
 });
 
 function toggleSelectionMode() {
   isSelectionMode = !isSelectionMode;
-  console.log('Shopping AI Guide: Selection mode toggled to:', isSelectionMode);
+  console.log('AI Shopping Assistant: Selection mode toggled to:', isSelectionMode);
 
   if (isSelectionMode) {
-    console.log('Shopping AI Guide: Enabling selection mode...');
+    console.log('AI Shopping Assistant: Enabling selection mode...');
     enableSelectionMode();
-    console.log('Shopping AI Guide: Selection mode enabled');
+    console.log('AI Shopping Assistant: Selection mode enabled');
   } else {
-    console.log('Shopping AI Guide: Disabling selection mode...');
+    console.log('AI Shopping Assistant: Disabling selection mode...');
     disableSelectionMode();
-    console.log('Shopping AI Guide: Selection mode disabled');
+    console.log('AI Shopping Assistant: Selection mode disabled');
   }
 }
 
 function enableSelectionMode() {
-  console.log('Shopping AI Guide: enableSelectionMode() called');
+  console.log('AI Shopping Assistant: enableSelectionMode() called');
 
   // Check if panel already exists
   if (selectionOverlay) {
-    console.log('Shopping AI Guide: Panel already exists, showing it');
+    console.log('AI Shopping Assistant: Panel already exists, showing it');
     selectionOverlay.style.display = 'flex';
     showSettingsView();
     return;
   }
 
-  console.log('Shopping AI Guide: Creating new panel...');
+  console.log('AI Shopping Assistant: Creating new panel...');
   createSelectionOverlay();
-  console.log('Shopping AI Guide: Panel created, checking visibility...');
+  console.log('AI Shopping Assistant: Panel created, checking visibility...');
 
   // Verify panel is in DOM
   const panel = document.getElementById('shopping-ai-panel');
   if (panel) {
-    console.log('Shopping AI Guide: Panel found in DOM');
-    console.log('Shopping AI Guide: Panel display:', window.getComputedStyle(panel).display);
-    console.log('Shopping AI Guide: Panel visibility:', window.getComputedStyle(panel).visibility);
-    console.log('Shopping AI Guide: Panel z-index:', window.getComputedStyle(panel).zIndex);
+    console.log('AI Shopping Assistant: Panel found in DOM');
+    console.log('AI Shopping Assistant: Panel display:', window.getComputedStyle(panel).display);
+    console.log('AI Shopping Assistant: Panel visibility:', window.getComputedStyle(panel).visibility);
+    console.log('AI Shopping Assistant: Panel z-index:', window.getComputedStyle(panel).zIndex);
   } else {
-    console.error('Shopping AI Guide: Panel NOT found in DOM after creation!');
+    console.error('AI Shopping Assistant: Panel NOT found in DOM after creation!');
   }
 
   // Don't add highlights yet - wait for user to click "Start Selecting Products"
@@ -99,20 +99,20 @@ function disableSelectionMode() {
 }
 
 function createSelectionOverlay() {
-  console.log('Shopping AI Guide: createSelectionOverlay() called');
+  console.log('AI Shopping Assistant: createSelectionOverlay() called');
 
   // Check if document.body exists
   if (!document.body) {
-    console.error('Shopping AI Guide: document.body is null! Cannot create panel.');
+    console.error('AI Shopping Assistant: document.body is null! Cannot create panel.');
     return;
   }
 
-  console.log('Shopping AI Guide: Creating panel element...');
+  console.log('AI Shopping Assistant: Creating panel element...');
   selectionOverlay = document.createElement('div');
   selectionOverlay.id = 'shopping-ai-panel';
   selectionOverlay.innerHTML = `
     <div class="panel-header">
-      <h3>🛍️ Shopping AI Guide</h3>
+      <h3>🛍️ AI Shopping Assistant</h3>
       <button id="close-panel" class="close-btn">×</button>
     </div>
     <div class="panel-content">
@@ -153,6 +153,10 @@ function createSelectionOverlay() {
         <div class="section-title">Analysis Results</div>
         <div id="product-images-preview" class="product-images-preview"></div>
         <div id="analysis-content" class="analysis-content"></div>
+        <details id="debug-prompt-section" class="debug-prompt-section" style="display: none;">
+          <summary class="debug-prompt-summary">🔍 Debug: Prompt Sent to AI</summary>
+          <pre id="debug-prompt-content" class="debug-prompt-content"></pre>
+        </details>
       </div>
 
       <!-- Loading Section -->
@@ -163,19 +167,19 @@ function createSelectionOverlay() {
     </div>
   `;
 
-  console.log('Shopping AI Guide: Appending panel to document.body...');
+  console.log('AI Shopping Assistant: Appending panel to document.body...');
   document.body.appendChild(selectionOverlay);
-  console.log('Shopping AI Guide: Panel appended to document.body');
-  console.log('Shopping AI Guide: Panel element:', selectionOverlay);
-  console.log('Shopping AI Guide: Panel ID:', selectionOverlay.id);
-  console.log('Shopping AI Guide: Panel parent:', selectionOverlay.parentElement);
+  console.log('AI Shopping Assistant: Panel appended to document.body');
+  console.log('AI Shopping Assistant: Panel element:', selectionOverlay);
+  console.log('AI Shopping Assistant: Panel ID:', selectionOverlay.id);
+  console.log('AI Shopping Assistant: Panel parent:', selectionOverlay.parentElement);
 
   // Load saved settings
-  console.log('Shopping AI Guide: Loading panel settings...');
+  console.log('AI Shopping Assistant: Loading panel settings...');
   loadPanelSettings();
 
   // Event listeners
-  console.log('Shopping AI Guide: Setting up event listeners...');
+  console.log('AI Shopping Assistant: Setting up event listeners...');
   document.getElementById('auto-compare-btn').addEventListener('click', autoCompare);
   document.getElementById('back-to-settings-from-results').addEventListener('click', showSettingsView);
   document.getElementById('close-panel').addEventListener('click', disableSelectionMode);
@@ -184,9 +188,9 @@ function createSelectionOverlay() {
   document.getElementById('panel-model-select').addEventListener('change', savePanelModel);
   document.getElementById('toggle-panel-api-key').addEventListener('click', togglePanelApiKeyVisibility);
 
-  console.log('Shopping AI Guide: Event listeners set up successfully');
-  console.log('Shopping AI Guide: Panel creation completed successfully');
-  console.log('Shopping AI Guide: Showing settings view...');
+  console.log('AI Shopping Assistant: Event listeners set up successfully');
+  console.log('AI Shopping Assistant: Panel creation completed successfully');
+  console.log('AI Shopping Assistant: Showing settings view...');
 
   // Show settings view by default
   showSettingsView();
@@ -647,30 +651,52 @@ function extractImageData(img) {
 }
 
 function extractTitle(img) {
-  // 1. Try to find title in the immediate container or parents
+  // 1. Check the nearest anchor's title or aria-label (Amazon uses these)
+  const nearestLink = img.closest('a');
+  if (nearestLink) {
+    const linkTitle = nearestLink.getAttribute('title') || nearestLink.getAttribute('aria-label');
+    if (linkTitle && linkTitle.trim().length > 10) {
+      return linkTitle.trim();
+    }
+  }
+
+  // 2. Try to find title in the immediate container or parents (up to 10 levels)
   let current = img.parentElement;
   let attempts = 0;
-  const maxLevels = 5;
+  const maxLevels = 10;
 
   while (current && attempts < maxLevels && current !== document.body) {
     // Look for explicit title elements
-    // Prioritize H tags and specific classes
-    const titleElement = current.querySelector('h1, h2, h3, .title, .product-title, .product-name, .name, [class*="title"], [class*="name"]');
+    const titleElement = current.querySelector('h1, h2, h3, h4, .title, .product-title, .product-name, .name, [class*="title"], [class*="name"], [aria-label]');
 
     if (titleElement) {
+      // Prefer aria-label if it's descriptive
+      const ariaLabel = titleElement.getAttribute('aria-label');
+      if (ariaLabel && ariaLabel.trim().length > 10) {
+        return ariaLabel.trim();
+      }
       const text = titleElement.innerText.trim();
-      // Avoid empty strings or very short generic text
-      if (text.length > 3) {
+      if (text.length > 10) {
         return text;
       }
+    }
+
+    // Also check aria-label on the container itself
+    const containerAria = current.getAttribute('aria-label');
+    if (containerAria && containerAria.trim().length > 10) {
+      return containerAria.trim();
     }
 
     current = current.parentElement;
     attempts++;
   }
 
-  // Fallback to image attributes
-  return img.alt || img.title || 'Product';
+  // 3. img.alt is often the best fallback — use it if it's reasonably descriptive
+  if (img.alt && img.alt.trim().length > 10) {
+    return img.alt.trim();
+  }
+
+  return img.title || 'Product';
 }
 
 function findProductLink(img) {
@@ -806,7 +832,7 @@ function updateSelectionUI() {
 
 // Panel view management
 function showSettingsView() {
-  console.log('Shopping AI Guide: showSettingsView() called');
+  console.log('AI Shopping Assistant: showSettingsView() called');
 
   const settingsSection = document.getElementById('settings-section');
   const resultsSection = document.getElementById('results-section');
@@ -814,9 +840,9 @@ function showSettingsView() {
 
   if (settingsSection) {
     settingsSection.style.display = 'block';
-    console.log('Shopping AI Guide: Settings section shown');
+    console.log('AI Shopping Assistant: Settings section shown');
   } else {
-    console.error('Shopping AI Guide: settings-section not found!');
+    console.error('AI Shopping Assistant: settings-section not found!');
   }
 
   if (resultsSection) {
@@ -833,7 +859,7 @@ function showSettingsView() {
     autoCompareStatus.style.display = 'none';
   }
 
-  console.log('Shopping AI Guide: Settings view displayed');
+  console.log('AI Shopping Assistant: Settings view displayed');
 }
 
 function showResultsView() {
@@ -949,7 +975,7 @@ function hideResults() {
   }
 }
 
-function showResults(analysis, images = null) {
+function showResults(analysis, images = null, prompt = null) {
   const analysisContent = document.getElementById('analysis-content');
   const imagesPreview = document.getElementById('product-images-preview');
 
@@ -978,6 +1004,19 @@ function showResults(analysis, images = null) {
 
   if (analysisContent) {
     analysisContent.innerHTML = formatMarkdownToHTML(analysis);
+
+    // Show debug prompt section if prompt is available
+    const debugSection = document.getElementById('debug-prompt-section');
+    const debugContent = document.getElementById('debug-prompt-content');
+    if (debugSection && debugContent) {
+      if (prompt) {
+        debugContent.textContent = prompt;
+        debugSection.style.display = 'block';
+      } else {
+        debugSection.style.display = 'none';
+      }
+    }
+
     showResultsView();
 
     // Scroll to top of results
@@ -998,6 +1037,20 @@ function formatMarkdownToHTML(text) {
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // Bold+Link combined: **[text](url)** → <strong><a>text</a></strong>
+  // Greedily consume everything up to the last ) before ** to handle URLs with parens
+  html = html.replace(/\*\*\[([^\]]+)\]\((https?:\/\/.+?)\)\*\*/g, '<strong><a href="$2" target="_blank" rel="noopener noreferrer">$1</a></strong>');
+
+  // Links [text](url) — consume everything up to the closing ) to handle URLs with parens
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  // Auto-link bare URLs not already inside an href (skip if preceded by href=")
+  html = html.replace(/(?<!href=")(https?:\/\/[^\s<"]+)/g, (match) => {
+    // Strip trailing punctuation that's unlikely to be part of the URL
+    const clean = match.replace(/[.,;:!?)]+$/, '');
+    return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>`;
+  });
 
   // Bold
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -1083,9 +1136,28 @@ async function autoCompare() {
   const productImages = [];
   const seenSrcs = new Set();
 
+  // Selectors for sidebars, navbars, carts, and other non-result areas to exclude
+  const EXCLUDE_SELECTORS = [
+    '#shopping-ai-panel',
+    // Amazon sidebar / cart / nav
+    '#nav-bar', '#navbar', 'nav', 'header', 'footer',
+    '#rightCol', '#buy-now-button', '#add-to-cart-button',
+    '#sidebarContent', '#desktop-sticky-plus',
+    '[data-feature-name="sideSheet"]',
+    '.nav-cart', '.nav-flyout', '.nav-sprite',
+    // Amazon right-hand "your cart" flyout column
+    '#attach-swatch-detail-page-dp', '.ewc-subtotal',
+    // Generic sidebar patterns
+    '[class*="sidebar"]', '[id*="sidebar"]',
+    '[class*="cart"]', '[id*="cart"]',
+    '[class*="flyout"]', '[id*="flyout"]',
+    '[class*="subnav"]', '[id*="subnav"]',
+    '[role="navigation"]', '[role="complementary"]',
+  ];
+
   allImages.forEach(img => {
-    // Skip images inside our panel
-    if (img.closest('#shopping-ai-panel')) return;
+    // Skip images inside excluded containers
+    if (EXCLUDE_SELECTORS.some(sel => img.closest(sel))) return;
 
     // Deduplicate by src
     if (seenSrcs.has(img.src)) return;
@@ -1151,7 +1223,7 @@ async function autoCompare() {
 
       if (response && response.success) {
         if (response.data && response.data.analysis) {
-          showResults(response.data.analysis, selectedImages);
+          showResults(response.data.analysis, selectedImages, response.data.prompt);
 
           if (response.data.finishReason === 'MAX_TOKENS') {
             showWarningMessage('Analysis may be incomplete due to length limits. Try fewer products.');
@@ -1215,7 +1287,7 @@ async function sendToGemini() {
       if (response && response.success) {
         // Display results in the panel with images
         if (response.data && response.data.analysis) {
-          showResults(response.data.analysis, selectedImages);
+          showResults(response.data.analysis, selectedImages, response.data.prompt);
 
           // Show warning if response was truncated
           if (response.data.finishReason === 'MAX_TOKENS') {

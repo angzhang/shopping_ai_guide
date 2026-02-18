@@ -474,6 +474,51 @@
   background: white;
 }
 
+.debug-prompt-section {
+  margin-top: 16px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.debug-prompt-summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6c757d;
+  background: #f1f3f5;
+  user-select: none;
+  list-style: none;
+}
+
+.debug-prompt-summary::-webkit-details-marker {
+  display: none;
+}
+
+.debug-prompt-summary::before {
+  content: '▶ ';
+  font-size: 10px;
+}
+
+details[open] .debug-prompt-summary::before {
+  content: '▼ ';
+}
+
+.debug-prompt-content {
+  margin: 0;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #495057;
+  background: #f8f9fa;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  border-top: 1px solid #dee2e6;
+}
+
 .loading-section {
   text-align: center;
   padding: 40px 20px;
